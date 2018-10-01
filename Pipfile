@@ -1,0 +1,24 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+six = "*"
+numpy = "*"
+wheel = "*"
+mock = "*"
+"h5py" = "*"
+keras-applications = "==1.0.4"
+keras-preprocessing = "==1.0.3"
+tensorflow = {path = "/tmp/tensorflow_pkg/tensorflow-1.10.0-cp36-cp36m-macosx_10_7_x86_64.whl"}
+ipython = "*"
+matplotlib = "*"
+pandas = "*"
+scikit-learn = "*"
+pylint = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.6"

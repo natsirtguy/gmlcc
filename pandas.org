@@ -1,0 +1,53 @@
+# deck: python
+* Pandas class for a column:
+  Series
+* Create a dataframe from series data:
+  pandas.DataFrame({'ColName1': series1, 'ColName2': series2})
+* Load a dataframe from a csv:
+  pandas.read_csv(file-or-url, sep=",")
+* Inspect a dataframe:
+  df.describe()
+* Look at the first couple entries in a dataframe:
+  df.head(), same as df.head(5)
+* Create histograms from a dataframe:
+  df.hist()
+* Access the first 5 entries of a series "Population" in a dataframe:
+  df.loc[:5, "Population"]
+* Take the log of a series in pandas:
+  np.log(series)
+* Do some arbitrary operation to a pandas series:
+  series.apply(lambda x: do stuff to x)
+* Add a new series to a dataframe:
+  df["newseries"] = pd.series(stuff)
+* Elementwise logical operations in pandas or numpy:
+  np.logical_not(), np.logical_and(), np.logical_or()
+* Change ordering of pandas dataframe:
+  df.reindex([indexkey1, indexkey2, ...], columns=['Column to include'])
+* Create a dataframe with letters as indices:
+  pd.DataFrame({"this": [3,4], "that": [1,2]}, index=["a", "b"])
+* Swap two columns in dataframe:
+  df[['col1','col2']] = df[['col2','col1']]
+* Two ways to select a series from a df:
+  df.series_name, df['series_name']
+* The (rows/columns) are sliced in a dataframe:
+  rows
+* In pandas, df.loc[...] uses _____ while df.iloc[...] uses:
+  labels, positions
+* Get the first row of df in pandas:
+  df['R0':'R0']
+* Slice dataframe to get the columns where the entries in row "A" are > 1:
+  df[:, df.loc['A'] > 1]
+* Cannonical way to get value in row "R", column "C" of dataframe:
+  df.loc['R', 'C']
+* df.loc['RC?'] returns a row/column:
+  row
+* df['RC?'] returns a row/column:
+  column
+* Using a callable to get all rows with first column > 0 in pandas:
+  df.loc[lambda df: df.iloc[:, 0] > 0, :]
+* Reason to use callable index in pandas:
+  Chain data selection without temporary variables.
+* Information in df.describe():
+  count, mean, std, min, max, quartiles
+* df['series'] vs df[['series']] in pandas:
+  First gives a series, second a dataframe

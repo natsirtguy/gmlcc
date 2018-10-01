@@ -1,0 +1,95 @@
+# deck: ml
+* Example (ML):
+  A particular instance of data
+* Labeled example (ML):
+  Example with correct label, used to train
+* Unlabeled example (ML):
+  Example w/o label, predicting label is the point
+* Model (ML):
+  Mapping from examples to predicted labels, parameters are learned
+* Label (ML):
+  Output, what is predicted
+* Feature (ML):
+  Input variable
+* Inference (ML):
+  Applying the model to unlabeled examples
+* Regression model (ML):
+  Predicts continuous values
+* Classification model (ML):
+  Predicts discrete values
+* Bias (linear regression, ML):
+  The y-intercept in 1D, shows y if x = 0 
+* Weight (linear regression, ML):
+  Like the slope, shows dependence of label on changing features
+* Loss (ML):
+  Measures badness of model on a particular example
+* Mean square error, MSE (ML):
+  Average squared loss per example over dataset
+* Converged model (ML):
+  A model where the loss has stopped changing with continued updates
+* Requirement for convergence in optimization problems:
+  Convexity of the loss function (equivalent to single minimum)
+* Gradient descent (ML):
+  Compute the gradient of the loss using a small number of examples then move along the negative gradient in the weight space
+* Hyperparameters (ML):
+  Knobs that programmers tweak
+* Stochastic gradient descent, SGD:
+  Gradient descent using only a single example at a time
+* Feature column in tf:
+  Construct describing datatype for input to TF
+* If training error decreases slowly:
+  Increase the learning rate
+* If training error fluctuates a lot:
+  Decrease the learning rate
+* If training error has not plateaued:
+  Increase number of steps
+* Create a linear regressor in tf:
+  tf.estimator.LinearRegressor(feature_cols_list, optimizer)
+* Create a numeric feature column in tf:
+  tf.feature_column.numeric_column('name_of_col')
+* Create gradient descent optimizer in tf:
+  tf.train.GradientDescentOptimizer(learning_rate=lr)
+* Clip gradient descent optimizer in tf:
+  tf.contrib.estimator.clip_gradients_by_norm(optimizer, clip_by)
+* tf.data.Dataset:
+  Comprised of elements that each contain one or more tf.Tensor objects
+* Simplest way to get items from a Dataset:
+  ds.make_one_shot_iterator().get_next()
+* Actually display an item of data from a tf dataset iterator:
+  sess.run(print(iterator.get_next()))
+* tf.Tensor:
+  Handle to an output of a tensorflow operation
+* Train a model in tensorflow:
+  model.train(input_fn=input_fn, steps=n_steps)
+* Input function for training model in tensorflow:
+  Function that provides data in the form of ({feature_label: feature_tensor}, label_tensor)
+* Find variable names in a tf model:
+  model.get_variable_names()
+* Find variable values in a tf model, e.g. the biases in a linear model:
+  model.get_variable_value(name), e.g. 'linear/linear_model/bias_weights'
+* Create tf Dataset with elements ({'xs': tensor_x}, tensor_y):
+  tf.data.Dataset.from_tensor_slices(({'xs': xs}, ys))
+* Models generalize well when:
+  Examples are iid, distribution is stationary, examples from same distribution
+* Validation set:
+  Set of examples to test and get hyperparameters, not training
+* Three sets when partitioning examples:
+  Training, validation, test
+* Condition to trust model will generalize:
+  Validation and test loss are similar
+* Module, syntax to get mean squared error:
+  sklearn.metrics.mean_squared_error(predictions, targets)
+* Produce predictions using tensorflow:
+  Call model.predict(input_fn=predict_fn), predict_fn does no shuffling, batch with single item, only repeat one epoch, only returns data
+* Feature engineering:
+  Transforming raw data into a feature vector
+* One-hot encoding:
+  One position of binary array is 1, representing "active" category
+* Multi-hot encoding:
+  Multiple values in string are 1, multiple "active" categories
+* Steps to take in preparing data:
+  Look at distribution, avoid features with few/one member, remove/clip outliers, think of binning, remove magic values, make meaning clear, scale
+* Z score:
+  (value - mean)/std
+* Possibles errors in data:
+  Missing/incorrect data and duplicates

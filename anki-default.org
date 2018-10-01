@@ -1,0 +1,3 @@
+# deck: Default
+* Match entire string in emacs regexp:
+  \&
