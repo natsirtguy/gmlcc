@@ -23,17 +23,26 @@ pd.options.display.float_format = '{:.2f}'.format
 chd = pd.read_csv(
     "https://download.mlcc.google.com/mledu-datasets/california_housing_train.csv", sep=",")
 
+# Create boundaries of latitude bins in the data.
+chdlats = np.linspace(chd['latitude'].min(), chd['latitude'].max(), 11)
 
-def preprocess(chd):
+
+def preprocess(hdf):
     '''Preprocess features, selecting some and making a new one.'''
-    processed = chd[list(set(chd.columns) - {'median_house_value'})].copy()
-    processed['rooms_per_person'] = chd['total_rooms']/chd['population']
+    processed = hdf[list(set(hdf.columns) - {'median_house_value'})].copy()
+    processed['rooms_per_person'] = hdf['total_rooms']/hdf['population']
+
+    # Create one-hot encoding for latitude.
+    for i, lat in enumerate(chdlats[:-1]):
+        feat = f'lat_{lat:.2f}_to_{chdlats[i+1]:.2f}'
+        processed[feat] = np.logical_and(hdf['latitude'] >= lat,
+                                         hdf['latitude'] <= chdlats[i+1])
     return processed
 
 
-def preprocess_labels(chd):
+def preprocess_labels(hdf):
     '''Preprocess label by dividing by 1000.'''
-    return (chd[['median_house_value']]/1000).copy()
+    return (hdf[['median_house_value']]/1000).copy()
 
 
 # Permute to avoid selecting data from one part of California.
@@ -43,41 +52,40 @@ training_labels = preprocess_labels(chd).iloc[perm[:12000], :]
 validation_examples = preprocess(chd).iloc[perm[12000:], :]
 validation_labels = preprocess_labels(chd).iloc[perm[12000:], :]
 
-# Examine the data.
-print("Training examples:")
-print(training_examples.iloc[:, :3].describe())
-print(training_examples.iloc[:, 3:7].describe())
-print(training_examples.iloc[:, 7:].describe())
-print()
-print("Training targets:")
-print(training_labels.describe())
-print()
-print("Validation examples:")
-print(validation_examples.iloc[:, :3].describe())
-print(validation_examples.iloc[:, 3:7].describe())
-print(validation_examples.iloc[:, 7:].describe())
-print("Validation targets:")
-print(validation_labels.describe())
-print()
+examine = False
+if examine:
+    # Examine the data.
+    print("Training examples:")
+    print(training_examples.iloc[:, :3].describe())
+    print(training_examples.iloc[:, 3:7].describe())
+    print(training_examples.iloc[:, 7:].describe())
+    print()
+    print("Training targets:")
+    print(training_labels.describe())
+    print()
+    print("Validation examples:")
+    print(validation_examples.iloc[:, :3].describe())
+    print(validation_examples.iloc[:, 3:7].describe())
+    print(validation_examples.iloc[:, 7:].describe())
+    print("Validation targets:")
+    print(validation_labels.describe())
+    print()
 
-correlation_data = training_examples.copy()
-correlation_data['targets'] = training_labels['median_house_value']
-corr = correlation_data.corr()
-print(corr.iloc[:, :3])
-print(corr.iloc[:, 3:6])
-print(corr.iloc[:, 6:9])
-print(corr.iloc[:, 9:])
+    correlation_data = training_examples.copy()
+    correlation_data['targets'] = training_labels['median_house_value']
+    corrd = correlation_data.corr()
+    print(corrd.iloc[:, :3])
+    print(corrd.iloc[:, 3:6])
+    print(corrd.iloc[:, 6:9])
+    print(corrd.iloc[:, 9:])
+    print(corrd.iloc[-11:-1, -1])
 
 
 for e, l in [(training_examples, training_labels),
              (validation_examples, validation_labels)]:
     plt.figure()
-    plt.scatter(e['latitude'], e['longitude'], cmap='coolwarm',
+    plt.scatter(e['longitude'], e['latitude'], cmap='coolwarm',
                 c=l['median_house_value']/l['median_house_value'].max())
-
-# Create feature columns.
-chosen = ['rooms_per_person', 'median_income']
-fcs = [tf.feature_column.numeric_column(feature) for feature in chosen]
 
 
 def train_fn(ds, shuffle=True, batch_size=1, repeat=None):
@@ -87,11 +95,16 @@ def train_fn(ds, shuffle=True, batch_size=1, repeat=None):
 
 
 # Create training function.
-def train(examples, labels, lr=1e-4, steps=100, batch_size=1, model=None):
+def train(examples, labels,
+          features=None, lr=1e-4, steps=100, batch_size=1, model=None):
     '''Create and train a linear regression model.'''
     # Create datasets.
+    if not features:
+        features = examples.columns
+    fcs = [tf.feature_column.numeric_column(feature) for feature in features]
+
     ds = Ds.from_tensor_slices(
-        ({feature: examples[feature] for feature in chosen}, labels))
+        ({feature: examples[feature] for feature in features}, labels))
 
     opt = tf.contrib.estimator.clip_gradients_by_norm(
         tf.train.GradientDescentOptimizer(learning_rate=lr),
@@ -101,7 +114,9 @@ def train(examples, labels, lr=1e-4, steps=100, batch_size=1, model=None):
         model = tf.estimator.LinearRegressor(fcs, optimizer=opt)
 
     for _ in range(10):
-        model.train(train_fn(ds), steps=steps//10)
+        model.train(
+            train_fn(ds, batch_size=batch_size),
+            steps=steps//10)
         preds = model.predict(
             lambda: ds.batch(1).make_one_shot_iterator().get_next())
         predictions = np.hstack(pred['predictions'] for pred in preds)
@@ -110,26 +125,44 @@ def train(examples, labels, lr=1e-4, steps=100, batch_size=1, model=None):
     return model
 
 
-def validate(model, examples, labels):
+def validate(model, examples, labels, features=None):
     '''Check the mse on the validation set. '''
+    if not features:
+        features = examples.columns
+
     ds = Ds.from_tensor_slices(
-        ({feature: examples[feature] for feature in chosen}, labels))
+        ({feature: examples[feature] for feature in features}, labels))
     preds = model.predict(lambda: ds.batch(
         1).make_one_shot_iterator().get_next())
     predictions = np.hstack(pred['predictions'] for pred in preds)
+    plt.close()
     plt.subplot(1, 2, 1)
-    plt.scatter(examples['latitude'], examples['longitude'], cmap='coolwarm',
+    plt.scatter(examples['longitude'], examples['latitude'], cmap='coolwarm',
                 c=labels['median_house_value'])
     plt.subplot(1, 2, 2)
-    plt.scatter(examples['latitude'], examples['longitude'], cmap='coolwarm',
+    plt.scatter(examples['longitude'], examples['latitude'], cmap='coolwarm',
                 c=predictions)
 
     print("Validation mse: ", mse(predictions, labels))
 
 
 # Train with good hypers.
-trained = train(training_examples, training_labels,
-                lr=3e-5, batch_size=2, steps=200)
+chosen = ['rooms_per_person', 'median_income']
+trained = train(training_examples, training_labels, chosen,
+                lr=1e-1, batch_size=2, steps=200)
+validate(trained, validation_examples, validation_labels, chosen)
+
+chosen = ['latitude', 'median_income']
+trained2 = train(training_examples, training_labels, chosen,
+                 lr=1e-3, batch_size=5, steps=500)
+validate(trained2, validation_examples, validation_labels, chosen)
+
+one_hot_lats = [feat for feat in training_examples if 'lat_' in feat]
+chosen = one_hot_lats + ['median_income', 'rooms_per_person']
+trained3 = train(training_examples, training_labels, chosen,
+                 lr=3e-2, batch_size=2, steps=800)
+validate(trained3, validation_examples, validation_labels, chosen)
+
 
 # Get the test data.
 chdt = pd.read_csv(
@@ -139,4 +172,4 @@ test_examples = preprocess(chdt)
 test_labels = preprocess_labels(chdt)
 
 # Check the test.
-# validate(trained, test_examples, test_labels)
+validate(trained3, test_examples, test_labels, chosen)
