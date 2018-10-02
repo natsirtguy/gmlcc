@@ -93,3 +93,11 @@
   (value - mean)/std
 * Possibles errors in data:
   Missing/incorrect data and duplicates
+* Usefulness of feature crosses:
+  Allows nonlinearity in linear model, so generalize well
+* Feature cross of one-hot encoded data:
+  Actually given by the tensor product
+* argmax(f):
+  The value of the argument of f where it is maximized (in domain of f)
+* Dropout is likely useful:
+  With dense features (spares)
