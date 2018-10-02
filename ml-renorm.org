@@ -1,0 +1,21 @@
+* Big picture:
+  Simplify learning model with renormalization.
+* How does RG work?
+** Set of possible field interactions is restricted by symmetries.
+** Action is chosen to be classically scale invariant.
+** Changes of scale modify coupling constants because of quantum effects.
+* Most likely simpler (tree level) to start in ML.
+* Natural analog in qft is finding the vacuum state.
+* Players:
+** Loss function is the action.
+** Model is then the vacuum state, config that mins loss = action.
+** So, parameters of model must be fields.
+   They change to minimize the loss.
+** Examples must then be sources.
+   Must find input to QFT that defines the vacuum state. This will
+   correspond to examples in ML. Examples are drawn from a
+   distribution, which would suggest that they should somehow
+   correspond to fluctuations. Actually, the deviations from the true
+   model (ground state) induced by the differences of the examples
+   from their true target values will correspond to field
+   fluctuations. Therefore the examples must correspond to sources.

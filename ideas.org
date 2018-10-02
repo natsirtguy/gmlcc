@@ -1,0 +1,17 @@
+My thoughts
+* Reason about/look for symmetries in data
+** A priori
+   Use intuition/subject knowledge to identify invariants
+** A posteriori
+   Find ways to identify symmetries from features of model
+** Approximate symmetries could be particularly useful
+** Symmetries should probably be represented on the model space
+   You should see many models with the same output
+** Find orbits in model space by moving tangentially to gradient descent
+* Connections to spontaneous symmetry breaking?
+** Goal in ML is finding minima of loss function
+** Clearly similar to finding vacua
+** Connection to symmetries: Degenerate minima connected by group action?
+* [[file:ml-renorm.org][Renormalization and model simplification]]
+** Finding models with minimal numbers of parameters might be similar to RG
+** Map analytic/function RG onto computation
