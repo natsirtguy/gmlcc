@@ -5,10 +5,10 @@ import numpy as np
 import pandas as pd
 import matplotlib
 from sklearn.metrics import mean_squared_error as mse
-import tensorflow as tf  # pylint: disable=wrong-import-position
+import tensorflow as tf
 from tensorflow.data import Dataset as Ds
 matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt  # pylint: disable=wrong-import-position
+import matplotlib.pyplot as plt  # noqa: E402
 
 
 plt.ion()
@@ -21,7 +21,8 @@ pd.options.display.float_format = '{:.2f}'.format
 
 # Get data.
 chd = pd.read_csv(
-    "https://download.mlcc.google.com/mledu-datasets/california_housing_train.csv", sep=",")
+    "https://download.mlcc.google.com"
+    "/mledu-datasets/california_housing_train.csv", sep=",")
 
 
 def preprocess(hdf):
@@ -150,7 +151,8 @@ def train(examples, labels, features=None, bucket_sizes=None,
             raise ValueError(
                 'The number of buckets must match the number of features.')
 
-        fcdict = {feature: bucketize(examples[feature], fc, bucket_sizes[feature])
+        fcdict = {feature:
+                  bucketize(examples[feature], fc, bucket_sizes[feature])
                   if bucket_sizes[feature] else fc
                   for feature, fc in fcdict.items()}
 
@@ -225,10 +227,11 @@ will_test = False
 if will_test:
     # Get the test data.
     chdt = pd.read_csv(
-        "https://download.mlcc.google.com/mledu-datasets/california_housing_test.csv",
+        "https://download.mlcc.google.com"
+        "/mledu-datasets/california_housing_test.csv",
         sep=",")
     test_examples = preprocess(chdt)
     test_labels = preprocess_labels(chdt)
 
     # Check the test.
-    validate(trained, test_examples, test_labels, chosen)
+    validate(trained, test_examples, test_labels, features=binned.keys())
