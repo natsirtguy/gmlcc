@@ -1,4 +1,4 @@
-'''Practice using validation for training.'''
+'''Practice using binning, crossed features for training.'''
 
 import os
 import numpy as np
@@ -118,15 +118,16 @@ def bucketize(feature, fc, n_bins):
     return tf.feature_column.bucketized_column(fc, qs)
 
 
-def train(examples, labels, bucket_sizes=None,
-          features=None, lr=1e-4, steps=100, batch_size=1, model=None):
+def train(examples, labels, features=None, bucket_sizes=None,
+          crosses=None, lr=1e-4, steps=100, batch_size=1, model=None):
     '''Create and train a linear regression model.
 
     Args:
       examples: pandas.DataFrame with examples
       labels: pandas.DataFrame with labels
-      bucket_sizes: dict with size of buckets
       features: list of selected features from examples
+      bucket_sizes: dict with size of buckets
+      crosses: list of lists of features to be crossed
       lr: float, learning rate
       steps: int, number of steps to train
       batch_size: int, number of examples per batch
@@ -136,10 +137,12 @@ def train(examples, labels, bucket_sizes=None,
       A trained tensorflow.estimator.LinearRegressor.
     '''
 
-    # Create feature columns.
+    # Create feature columns and dictionary mapping feature names to them.
     if not features:
         features = examples.columns
-    fcs = [tf.feature_column.numeric_column(feature) for feature in features]
+    fcdict = {feature: tf.feature_column.numeric_column(feature)
+              for feature in features}
+    fcs = fcdict.values()
 
     # Use buckets if bucket_sizes is specified.
     if bucket_sizes:
@@ -147,11 +150,21 @@ def train(examples, labels, bucket_sizes=None,
             raise ValueError(
                 'The number of buckets must match the number of features.')
 
-        bcs = [bucketize(examples[feature], fc, bucket_sizes[feature])
-               if bucket_sizes[feature] else fc
-               for feature, fc in zip(features, fcs)]
+        fcdict = {feature: bucketize(examples[feature], fc, bucket_sizes[feature])
+                  if bucket_sizes[feature] else fc
+                  for feature, fc in fcdict.items()}
 
-        fcs = bcs
+        fcs = fcdict.values()
+
+    # Use crossed columns if crosses is specified.
+    if crosses:
+        for cross in crosses:
+            cross_name = '_x_'.join(cross)
+            cross_fc = [fcdict[feature] for feature in cross]
+            fcdict[cross_name] = tf.feature_column.crossed_column(
+                cross_fc, 1000)
+
+        fcs = fcdict.values()
 
     ds = Ds.from_tensor_slices(
         ({feature: examples[feature] for feature in features}, labels))
@@ -200,7 +213,8 @@ binned = {"longitude": 10,
           "rooms_per_person": None}
 
 trained = train(training_examples, training_labels,
-                bucket_sizes=binned, features=binned.keys(), lr=1,
+                features=binned.keys(), crosses=[["latitude", "longitude"]],
+                bucket_sizes=binned, lr=1,
                 steps=500, batch_size=100)
 
 validate(trained, validation_examples,

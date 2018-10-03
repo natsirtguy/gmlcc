@@ -105,3 +105,5 @@
   tf.feature_column.bucketized_column(numeric_column, boundaries)
 * It is necessary to create bucketized columns in the dataframe:
   No, tensorflow will handle it for you.
+* Create a crossed column:
+  tf.feature_column.crossed_column(cols_to_cross, hash_bucket_size)
