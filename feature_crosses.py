@@ -231,4 +231,4 @@ if will_test:
     test_labels = preprocess_labels(chdt)
 
     # Check the test.
-    validate(trained3, test_examples, test_labels, chosen)
+    validate(trained, test_examples, test_labels, chosen)

@@ -9,14 +9,15 @@ numpy = "*"
 wheel = "*"
 mock = "*"
 "h5py" = "*"
-keras-applications = "==1.0.4"
-keras-preprocessing = "==1.0.3"
-tensorflow = {path = "/tmp/tensorflow_pkg/tensorflow-1.10.0-cp36-cp36m-macosx_10_7_x86_64.whl"}
+keras-applications = "*"
+keras-preprocessing = "*"
+tensorflow = {path = "/Users/velociraptor/brain/ml/tensorflow_pkg/tensorflow-1.10.0-cp36-cp36m-macosx_10_7_x86_64.whl"}
 ipython = "*"
 matplotlib = "*"
 pandas = "*"
 scikit-learn = "*"
 pylint = "*"
+"flake8" = "*"
 
 [dev-packages]
 

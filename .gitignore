@@ -1,3 +1,4 @@
 *~
 *.anki
 tensorflow/*
+tensorflow_pkg/*
