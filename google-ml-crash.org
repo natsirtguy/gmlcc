@@ -101,3 +101,7 @@
   The value of the argument of f where it is maximized (in domain of f)
 * Dropout is likely useful:
   With dense features (spares)
+* Create a bucketized feature column:
+  tf.feature_column.bucketized_column(numeric_column, boundaries)
+* It is necessary to create bucketized columns in the dataframe:
+  No, tensorflow will handle it for you.

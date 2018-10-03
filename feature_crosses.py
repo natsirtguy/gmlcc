@@ -23,20 +23,11 @@ pd.options.display.float_format = '{:.2f}'.format
 chd = pd.read_csv(
     "https://download.mlcc.google.com/mledu-datasets/california_housing_train.csv", sep=",")
 
-# Create boundaries of latitude bins in the data.
-chdlats = np.linspace(chd['latitude'].min(), chd['latitude'].max(), 11)
-
 
 def preprocess(hdf):
     '''Preprocess features, selecting some and making a new one.'''
     processed = hdf[list(set(hdf.columns) - {'median_house_value'})].copy()
     processed['rooms_per_person'] = hdf['total_rooms']/hdf['population']
-
-    # Create one-hot encoding for latitude.
-    for i, lat in enumerate(chdlats[:-1]):
-        feat = f'lat_{lat:.2f}_to_{chdlats[i+1]:.2f}'
-        processed[feat] = np.logical_and(hdf['latitude'] >= lat,
-                                         hdf['latitude'] <= chdlats[i+1])
     return processed
 
 
@@ -47,8 +38,8 @@ def preprocess_labels(hdf):
 
 def examine(df):
     '''Examine data in dataframe.'''
-    for column_index in range(0, len(chd.columns), 2):
-        print(df.iloc[:, column_index:column_index+2].describe())
+    for i in range(0, len(df.columns), 2):
+        print(df.iloc[:, i:i+2].describe())
 
 
 # Permute to avoid selecting data from one part of California.
@@ -58,7 +49,7 @@ training_labels = preprocess_labels(chd).iloc[perm[:12000], :]
 validation_examples = preprocess(chd).iloc[perm[12000:], :]
 validation_labels = preprocess_labels(chd).iloc[perm[12000:], :]
 
-will_examine = False
+will_examine = True
 if will_examine:
     # Examine the data.
     print("Training examples:")
@@ -77,7 +68,7 @@ if will_examine:
     correlation_data = training_examples.copy()
     correlation_data['targets'] = training_labels['median_house_value']
     corrd = correlation_data.corr()
-    examine(coord)
+    examine(corrd)
     print("Correlation to label:")
     print(corrd.iloc[-11:-1, -1])
 
@@ -95,20 +86,78 @@ def train_fn(ds, shuffle=True, batch_size=1, repeat=None):
                     .make_one_shot_iterator().get_next())
 
 
-# Create training function.
-def train(examples, labels,
+def get_predictions(model, ds):
+    '''Retrieve predictions from model.'''
+    preds = model.predict(
+        lambda: ds.batch(1).make_one_shot_iterator().get_next())
+    return np.hstack(pred['predictions'] for pred in preds)
+
+
+def o_h_encode(feature, df):
+    '''One-hot encode a categorical Series feature in dataframe df.'''
+    f_name = feature.name if feature.name else str(id(feature))
+    values = set(feature)
+    for value in values:
+        df[f_name + '_' + str(value)] = (feature == value)
+    return df
+
+
+def bucketize(feature, fc, n_bins):
+    '''Bin pandas series in dataframe df.
+
+    Args:
+      feature: pandas.Series
+      fc: tensorflow.feature_column.numeric_column
+      n_bins: int
+
+    Returns:
+      tensorflow.feature_column.bucketized_column
+    '''
+
+    qs = list(feature.quantile(np.linspace(0, 1, n_bins+1)))
+    return tf.feature_column.bucketized_column(fc, qs)
+
+
+def train(examples, labels, bucket_sizes=None,
           features=None, lr=1e-4, steps=100, batch_size=1, model=None):
-    '''Create and train a linear regression model.'''
-    # Create datasets.
+    '''Create and train a linear regression model.
+
+    Args:
+      examples: pandas.DataFrame with examples
+      labels: pandas.DataFrame with labels
+      bucket_sizes: dict with size of buckets
+      features: list of selected features from examples
+      lr: float, learning rate
+      steps: int, number of steps to train
+      batch_size: int, number of examples per batch
+      model: tensorflow.estimator.LinearRegressor, previously trained model
+
+    Returns:
+      A trained tensorflow.estimator.LinearRegressor.
+    '''
+
+    # Create feature columns.
     if not features:
         features = examples.columns
     fcs = [tf.feature_column.numeric_column(feature) for feature in features]
+
+    # Use buckets if bucket_sizes is specified.
+    if bucket_sizes:
+        if len(bucket_sizes) != len(features):
+            raise ValueError(
+                'The number of buckets must match the number of features.')
+
+        bcs = [bucketize(examples[feature], fc, bucket_sizes[feature])
+               if bucket_sizes[feature] else fc
+               for feature, fc in zip(features, fcs)]
+
+        fcs = bcs
 
     ds = Ds.from_tensor_slices(
         ({feature: examples[feature] for feature in features}, labels))
 
     opt = tf.contrib.estimator.clip_gradients_by_norm(
-        tf.train.GradientDescentOptimizer(learning_rate=lr),
+        tf.train.FtrlOptimizer(learning_rate=lr),
         5.0)
 
     if not model:
@@ -118,9 +167,7 @@ def train(examples, labels,
         model.train(
             train_fn(ds, batch_size=batch_size),
             steps=steps//10)
-        preds = model.predict(
-            lambda: ds.batch(1).make_one_shot_iterator().get_next())
-        predictions = np.hstack(pred['predictions'] for pred in preds)
+        predictions = get_predictions(model, ds)
         print("Mean squared error: ", mse(predictions, labels))
 
     return model
@@ -133,9 +180,7 @@ def validate(model, examples, labels, features=None):
 
     ds = Ds.from_tensor_slices(
         ({feature: examples[feature] for feature in features}, labels))
-    preds = model.predict(lambda: ds.batch(
-        1).make_one_shot_iterator().get_next())
-    predictions = np.hstack(pred['predictions'] for pred in preds)
+    predictions = get_predictions(model, ds)
     plt.close()
     plt.subplot(1, 2, 1)
     plt.scatter(examples['longitude'], examples['latitude'], cmap='coolwarm',
@@ -147,30 +192,29 @@ def validate(model, examples, labels, features=None):
     print("Validation mse: ", mse(predictions, labels))
 
 
-# Train with good hypers.
-chosen = ['rooms_per_person', 'median_income']
-trained = train(training_examples, training_labels, chosen,
-                lr=1e-1, batch_size=2, steps=200)
-validate(trained, validation_examples, validation_labels, chosen)
+binned = {"longitude": 10,
+          "latitude": 10,
+          "housing_median_age": 7,
+          "households": 7,
+          "median_income": None,
+          "rooms_per_person": None}
 
-chosen = ['latitude', 'median_income']
-trained2 = train(training_examples, training_labels, chosen,
-                 lr=1e-3, batch_size=5, steps=500)
-validate(trained2, validation_examples, validation_labels, chosen)
+trained = train(training_examples, training_labels,
+                bucket_sizes=binned, features=binned.keys(), lr=1,
+                steps=500, batch_size=100)
 
-one_hot_lats = [feat for feat in training_examples if 'lat_' in feat]
-chosen = one_hot_lats + ['median_income', 'rooms_per_person']
-trained3 = train(training_examples, training_labels, chosen,
-                 lr=3e-2, batch_size=2, steps=800)
-validate(trained3, validation_examples, validation_labels, chosen)
+validate(trained, validation_examples,
+         validation_labels, features=binned.keys())
 
 
-# Get the test data.
-chdt = pd.read_csv(
-    "https://download.mlcc.google.com/mledu-datasets/california_housing_test.csv",
-    sep=",")
-test_examples = preprocess(chdt)
-test_labels = preprocess_labels(chdt)
+will_test = False
+if will_test:
+    # Get the test data.
+    chdt = pd.read_csv(
+        "https://download.mlcc.google.com/mledu-datasets/california_housing_test.csv",
+        sep=",")
+    test_examples = preprocess(chdt)
+    test_labels = preprocess_labels(chdt)
 
-# Check the test.
-validate(trained3, test_examples, test_labels, chosen)
+    # Check the test.
+    validate(trained3, test_examples, test_labels, chosen)

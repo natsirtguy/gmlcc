@@ -23,20 +23,11 @@ pd.options.display.float_format = '{:.2f}'.format
 chd = pd.read_csv(
     "https://download.mlcc.google.com/mledu-datasets/california_housing_train.csv", sep=",")
 
-# Create boundaries of latitude bins in the data.
-chdlats = np.linspace(chd['latitude'].min(), chd['latitude'].max(), 11)
-
 
 def preprocess(hdf):
     '''Preprocess features, selecting some and making a new one.'''
     processed = hdf[list(set(hdf.columns) - {'median_house_value'})].copy()
     processed['rooms_per_person'] = hdf['total_rooms']/hdf['population']
-
-    # Create one-hot encoding for latitude.
-    for i, lat in enumerate(chdlats[:-1]):
-        feat = f'lat_{lat:.2f}_to_{chdlats[i+1]:.2f}'
-        processed[feat] = np.logical_and(hdf['latitude'] >= lat,
-                                         hdf['latitude'] <= chdlats[i+1])
     return processed
 
 
@@ -147,30 +138,14 @@ def validate(model, examples, labels, features=None):
     print("Validation mse: ", mse(predictions, labels))
 
 
-# Train with good hypers.
-chosen = ['rooms_per_person', 'median_income']
-trained = train(training_examples, training_labels, chosen,
-                lr=1e-1, batch_size=2, steps=200)
-validate(trained, validation_examples, validation_labels, chosen)
+will_test = False
+if will_test:
+    # Get the test data.
+    chdt = pd.read_csv(
+        "https://download.mlcc.google.com/mledu-datasets/california_housing_test.csv",
+        sep=",")
+    test_examples = preprocess(chdt)
+    test_labels = preprocess_labels(chdt)
 
-chosen = ['latitude', 'median_income']
-trained2 = train(training_examples, training_labels, chosen,
-                 lr=1e-3, batch_size=5, steps=500)
-validate(trained2, validation_examples, validation_labels, chosen)
-
-one_hot_lats = [feat for feat in training_examples if 'lat_' in feat]
-chosen = one_hot_lats + ['median_income', 'rooms_per_person']
-trained3 = train(training_examples, training_labels, chosen,
-                 lr=3e-2, batch_size=2, steps=800)
-validate(trained3, validation_examples, validation_labels, chosen)
-
-
-# Get the test data.
-chdt = pd.read_csv(
-    "https://download.mlcc.google.com/mledu-datasets/california_housing_test.csv",
-    sep=",")
-test_examples = preprocess(chdt)
-test_labels = preprocess_labels(chdt)
-
-# Check the test.
-validate(trained3, test_examples, test_labels, chosen)
+    # Check the test.
+    validate(trained3, test_examples, test_labels, chosen)
