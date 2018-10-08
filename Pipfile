@@ -18,6 +18,7 @@ pandas = "*"
 scikit-learn = "*"
 pylint = "*"
 "flake8" = "*"
+ipdb = "*"
 
 [dev-packages]
 

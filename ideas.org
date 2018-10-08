@@ -15,3 +15,6 @@ My thoughts
 * [[file:ml-renorm.org][Renormalization and model simplification]]
 ** Finding models with minimal numbers of parameters might be similar to RG
 ** Map analytic/function RG onto computation
+* Sigmoids in logistic regression look like Fermi distributions
+** Log loss looks like entropy in Fermionic contexts
+** Might be possible to encode logistic models into Fermionic QFT

@@ -100,12 +100,94 @@
 * argmax(f):
   The value of the argument of f where it is maximized (in domain of f)
 * Dropout is likely useful:
-  With dense features (spares)
+  With dense features
 * Create a bucketized feature column:
   tf.feature_column.bucketized_column(numeric_column, boundaries)
-* It is necessary to create bucketized columns in the dataframe:
+* Is it necessary to create bucketized columns in the dataframe:
   No, tensorflow will handle it for you.
 * Create a crossed column:
   tf.feature_column.crossed_column(cols_to_cross, hash_bucket_size)
 * hash_bucket_size in crossed column:
   Basically, crossed feature are transformed to hash(cartesian product of features) % bucket_size
+* Validation loss begins to increase while training loss decreases:
+  Starting to overfit
+* Extra term in loss function that only knows about weights:
+  A regularizer
+* Regularizing the loss function:
+  Helps control model complexity to avoid overfitting
+* L2 regularizer:
+  Keeps the weights as small as possible --- prior is zero weights
+* Cases where you are more likely to need strong reglarization:
+  Whenever overfitting is a danger, e.g. small, noisy data sets
+* Regularization in logistic models:
+  Is very important, because in high dimensions tries hard to drive loss to zero, need to penalize large weights
+* Reasons to use linear logistic regression:
+  Very fast training/prediction, so good for large amounts of data
+* Sigmoid function with linear input:
+  1/(1+exp(-z)), z = bias + weights*xs
+* z in sigmoid is called the log-odds:
+  Because it is given by z = log(p/(1-p)), p is output probability, so looks like odds, p(happens)/p(not happens)
+* Logistic loss function (log loss):
+  -y log(y') - (1-y) log(1-y') where y' is sigmoid of log-odds
+* Accuracy:
+  (correct predictions)/(total predictions)
+* In true/false positive/negative:
+  Refers to prediction --- actual is opposite for false
+* Accuracy can be misleading for evaluating categorical model:
+  If there is a class imbalance
+* Class imbalance:
+  When one categorical outcome is very rare compared to others
+* Precision:
+  (True positives)/(All positive predictions) --- avoid crying wolf
+* Recall:
+  (True positives)/(Actual positives) --- also called true positive rate
+* Effect of raising classification threshold on precision:
+  Increases
+* Effect of raising classification threshold on recall:
+  Decreases
+* Classification or prediction threshold:
+  Used to decide what category a particular instance should be in given a probability from model
+* ROC curve:
+  Receiver operating characteristics curve, how model does with all thresholds, true positives rate vs false positive rate
+* AUC (or AUROC):
+  Area under ROC curve, probability that model gets pairwise ranking of positive, negative correct (does not depend on threshold)
+* Prediction bias:
+  Difference between sum of things we predict and sum of things we observe
+* Harmonic mean:
+  Reciprocal of arithmetic mean of reciprocals (makes sense for rates)
+* F1 score:
+  Harmonic mean of the recall and precision
+* False negatives hurt:
+  Recall
+* False positives hurt:
+  Precision
+* True positive rate:
+  Same as the recall, (true positive)/(actual positive)
+* False positive rate:
+  (false positve)/(actual negative)
+* Direction of raising the classification threshold on the ROC curve:
+  Down and left, because fewer items are classified as positive
+* Steps to prove AUC = probability of correct ordering:
+  Write TP, FP rates in terms of cutoff, change variables in AUC to cutoff, profit
+* Does AUC depend on classification threshold:
+  No
+* AUC not as useful when:
+  Making mistakes in one direction (false positives or false negatives) is much worse than the other, like cancer
+* Prediction bias:
+  Difference between average of predictions and average of observations
+* Possible causes for prediction bias:
+  BINBO: buggy pipeline, incomplete features, nosiy data, biased training set, overly strong regularization
+* Calibration layer:
+  Layer that removes prediction bias from model output
+* Problems with calibration layer:
+  Fixing symptom, not cause, and brittle
+* Low prediction bias is (necessary/sufficient) to have a good model:
+  Necessary but not sufficient
+* You must bucekt predictions to see bias:
+  Because output is binary, need to see ensemble
+* Calibration plot:
+  Shows the label vs prediction for buckets of sorted examples, to see bias at different values of predicition
+* If model is badly calibrated for only some regions:
+  Training data might not sample regions, some subsets are noisy, too regularized (or just look-elsewhere)
+* Create linear classifier in tensorflow:
+  model = tf.estimator.LinearClassifier(feature_columsn, optimizer=optimizer)
