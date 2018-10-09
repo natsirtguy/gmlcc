@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib
 from sklearn.metrics import mean_squared_error as mse
+from sklearn.metrics import log_loss
 import tensorflow as tf
 from tensorflow.data import Dataset as Ds
 matplotlib.use('TkAgg')
@@ -50,7 +51,7 @@ training_labels = preprocess_labels(chd).iloc[perm[:12000], :]
 validation_examples = preprocess(chd).iloc[perm[12000:], :]
 validation_labels = preprocess_labels(chd).iloc[perm[12000:], :]
 
-will_examine = True
+will_examine = False
 if will_examine:
     # Examine the data.
     print("Training examples:")
@@ -89,7 +90,11 @@ def get_predictions(model, ds):
     '''Retrieve predictions from model.'''
     preds = model.predict(
         lambda: ds.batch(1).make_one_shot_iterator().get_next())
-    return np.hstack(pred['predictions'] for pred in preds)
+    if type(model) == tf.estimator.LinearClassifier:
+        pred_name = 'logistic'
+    else:
+        pred_name = 'predictions'
+    return np.hstack(pred[pred_name] for pred in preds)
 
 
 def o_h_encode(feature, df):
@@ -186,7 +191,10 @@ def train(examples, labels, features=None, bucket_sizes=None,
             train_fn(ds, batch_size=batch_size),
             steps=steps//10)
         predictions = get_predictions(model, ds)
-        print("Mean squared error: ", mse(predictions, labels))
+        if classifier:
+            print("Log loss: ", log_loss(labels, predictions))
+        else:
+            print("Mean squared error: ", mse(predictions, labels))
 
     return model
 
@@ -206,8 +214,10 @@ def validate(model, examples, labels, features=None):
     plt.subplot(1, 2, 2)
     plt.scatter(examples['longitude'], examples['latitude'], cmap='coolwarm',
                 c=predictions)
-
-    print("Validation mse: ", mse(predictions, labels))
+    if type(model) == tf.estimator.LinearClassifier:
+        print("Validation log loss: ", log_loss(labels, predictions))
+    else:
+        print("Validation mse: ", mse(predictions, labels))
     return predictions
 
 
