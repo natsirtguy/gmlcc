@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib
 from sklearn.metrics import mean_squared_error as mse
-from sklearn.metrics import log_loss
+from sklearn.metrics import log_loss, roc_curve
 import tensorflow as tf
 from tensorflow.data import Dataset as Ds
 matplotlib.use('TkAgg')
@@ -131,6 +131,7 @@ def train(examples, labels, features=None, bucket_sizes=None,
       examples: pandas.DataFrame with examples
       labels: pandas.DataFrame with labels
       features: list of selected features from examples
+      classifier: Boolean, whether to train a linear classifier
       bucket_sizes: dict with size of buckets
       crosses: list of lists of features to be crossed
       lr: float, learning rate
@@ -233,21 +234,30 @@ def evaluate(model, examples, labels, features=None):
         lambda: ds.batch(1).make_one_shot_iterator().get_next())
 
 
-chosen = ["latitude",
-          "longitude",
-          "housing_median_age",
-          "total_rooms",
-          "total_bedrooms",
-          "population",
-          "households",
-          "median_income"]
-trained = train(training_examples, training_labels, features=chosen,
-                lr=1e-4, classifier=True, steps=500, batch_size=10)
+# Train.
+binned = {"longitude": 10,
+          "latitude": 10,
+          "housing_median_age": 7,
+          "households": 7,
+          "median_income": None,
+          "rooms_per_person": None}
+trained = train(training_examples, training_labels,
+                features=binned.keys(), bucket_sizes=binned,
+                crosses=[["latitude", "longitude"]],
+                lr=0.05, classifier=True, steps=500, batch_size=10)
 
+# Validate.
 y = validate(trained, validation_examples,
-             validation_labels, features=chosen)
+             validation_labels, features=binned.keys())
 
-evaluate(trained, validation_examples, validation_labels)
+# Evaluate the model.
+for stat_name, stat_value in evaluate(trained, validation_examples,
+                                      validation_labels).items():
+    print(f"{stat_name:20} | {stat_value}")
+
+# Plot the ROC curve.
+fpr, tpr, thresholds = roc_curve(validation_labels, y)
+plt.plot(tpr, fpr, [0, 1], [0, 1])
 
 will_test = False
 if will_test:
@@ -260,4 +270,4 @@ if will_test:
     test_labels = preprocess_labels(chdt)
 
     # Check the test.
-    validate(trained, test_examples, test_labels, features=chosen)
+    validate(trained, test_examples, test_labels, features=binned.keys())
