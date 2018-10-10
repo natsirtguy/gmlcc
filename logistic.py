@@ -221,6 +221,18 @@ def validate(model, examples, labels, features=None):
     return predictions
 
 
+def evaluate(model, examples, labels, features=None):
+    '''Check the mse on the validation set. '''
+    if not features:
+        features = examples.columns
+
+    ds = Ds.from_tensor_slices(
+        ({feature: examples[feature] for feature in features}, labels))
+
+    return model.evaluate(
+        lambda: ds.batch(1).make_one_shot_iterator().get_next())
+
+
 chosen = ["latitude",
           "longitude",
           "housing_median_age",
@@ -230,11 +242,12 @@ chosen = ["latitude",
           "households",
           "median_income"]
 trained = train(training_examples, training_labels, features=chosen,
-                lr=1e-3, classifier=True, steps=100, batch_size=10)
+                lr=1e-4, classifier=True, steps=500, batch_size=10)
 
 y = validate(trained, validation_examples,
              validation_labels, features=chosen)
 
+evaluate(trained, validation_examples, validation_labels)
 
 will_test = False
 if will_test:
@@ -247,4 +260,4 @@ if will_test:
     test_labels = preprocess_labels(chdt)
 
     # Check the test.
-    validate(trained, test_examples, test_labels, features=binned.keys())
+    validate(trained, test_examples, test_labels, features=chosen)

@@ -191,3 +191,17 @@
   Training data might not sample regions, some subsets are noisy, too regularized (or just look-elsewhere)
 * Create linear classifier in tensorflow:
   model = tf.estimator.LinearClassifier(feature_columsn, optimizer=optimizer)
+* Log-odds is also called:
+  logit
+* Fields in dictionaries returned by linear_classifier.predict() with boolean category:
+  logits, logistic, probabilities, classes, class_ids
+* logistic in linear_classifier.predict() elements:
+  The value of the sigmoid function for the given prediction
+* probabilities in linear_classifier.predict() elements:
+  Array of probabilities of the different classes, probabilities[0] is prob that it is false for Boolean, probabilities[1] is equivalent to logistic
+* classes in linear_regressor.predict() elements:
+  Array with the most likely class for the given prediction
+* class_id in linear_regressor.predict() elements:
+  Array with the class id (an int) of most likely prediction, so element["probabilities"][element["class_ids"][0]] is the max of probabilities
+* Evaluate the performance of a tensorflow model:
+  model.evaluate(input_fn=validation_fn)
