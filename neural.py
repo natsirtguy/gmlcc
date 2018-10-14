@@ -1,6 +1,7 @@
 '''Practice using binning, crossed features for training.'''
 
 import os
+import itertools
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -35,7 +36,9 @@ def preprocess(hdf):
 
 def preprocess_labels(hdf):
     '''Preprocess label by dividing by 1000.'''
-    return pd.DataFrame({'high_cost': (hdf['median_house_value'] > 265000)})
+    labels_df = hdf.copy()[['median_house_value']]
+    labels_df['median_house_value'] /= 1000
+    return labels_df
 
 
 def examine(df):
@@ -50,6 +53,20 @@ training_examples = preprocess(chd).iloc[perm[:12000], :]
 training_labels = preprocess_labels(chd).iloc[perm[:12000], :]
 validation_examples = preprocess(chd).iloc[perm[12000:], :]
 validation_labels = preprocess_labels(chd).iloc[perm[12000:], :]
+
+
+def scatter_pairs(df):
+    '''Show scatter plots of pairs of features against each other.'''
+    for f1, f2 in itertools.combinations(df.columns, 2):
+        plt.figure()
+        plt.plot(df[f1], df[f2], '.')
+        plt.xlabel(f1)
+        plt.ylabel(f2)
+
+
+show_scatters = False
+if show_scatters:
+    scatter_pairs(chd)
 
 will_examine = False
 if will_examine:
@@ -67,7 +84,7 @@ if will_examine:
     examine(validation_labels)
     print()
     correlation_data = training_examples.copy()
-    correlation_data['targets'] = training_labels['high_cost']
+    correlation_data['targets'] = training_labels['median_house_value']
     corrd = correlation_data.corr()
     print("Correlation to label:")
     print(corrd.iloc[-11:-1, -1])
@@ -77,7 +94,7 @@ for e, l in [(training_examples, training_labels),
              (validation_examples, validation_labels)]:
     plt.figure()
     plt.scatter(e['longitude'], e['latitude'], cmap='coolwarm',
-                c=l["high_cost"])
+                c=l["median_house_value"])
 
 
 def train_fn(ds, shuffle=True, batch_size=1, repeat=None):
@@ -90,7 +107,7 @@ def get_predictions(model, ds):
     '''Retrieve predictions from model.'''
     preds = model.predict(
         lambda: ds.batch(1).make_one_shot_iterator().get_next())
-    if type(model) == tf.estimator.LinearClassifier:
+    if "classifier" in str(type(model)).casefold():
         pred_name = 'logistic'
     else:
         pred_name = 'predictions'
@@ -122,16 +139,16 @@ def bucketize(feature, fc, n_bins):
     return tf.feature_column.bucketized_column(fc, qs)
 
 
-def train(examples, labels, features=None, bucket_sizes=None,
-          crosses=None, classifier=True, lr=1e-4, steps=100,
+def train(examples, labels, hidden_units=None, features=None, bucket_sizes=None,
+          crosses=None, classifier=False, lr=1e-4, steps=100,
           l1_strength=None, batch_size=1, model=None):
-    '''Create and train a linear regression model.
+    '''Create and train a DNN model.
 
     Args:
       examples: pandas.DataFrame with examples
       labels: pandas.DataFrame with labels
       features: list of selected features from examples
-      classifier: Boolean, whether to train a linear classifier
+      classifier: Boolean, whether to train a classifier
       bucket_sizes: dict with size of buckets; if a value is None,
         don't bucketize that feature
       crosses: list of lists of features to be crossed
@@ -139,11 +156,11 @@ def train(examples, labels, features=None, bucket_sizes=None,
       l1_strength: float, strength of L1 regularization
       steps: int, number of steps to train
       batch_size: int, number of examples per batch
-      model: tensorflow LinearRegressor or LinearClassifer,
+      model: tensorflow DNNRegressor or DNNClassifer,
         previously trained model
 
     Returns:
-      A trained tensorflow.estimator.LinearRegressor or LinearClassifer.
+      A trained tensorflow.estimator.DNNRegressor.
     '''
 
     # Create feature columns and dictionary mapping feature names to them.
@@ -177,23 +194,21 @@ def train(examples, labels, features=None, bucket_sizes=None,
         fcs = fcdict.values()
 
     ds = Ds.from_tensor_slices(
-        ({feature: examples[feature] for feature in features}, labels))
+        ({feature: examples[feature] for feature in features},
+         np.array(labels)))
 
     if l1_strength:
         opt = tf.contrib.estimator.clip_gradients_by_norm(
-            tf.train.FtrlOptimizer(learning_rate=lr,
-                                   l1_regularization_strength=l1_strength),
+            tf.train.GradientDescentOptimizer(
+                learning_rate=lr, l1_regularization_strength=l1_strength),
             5.0)
     else:
         opt = tf.contrib.estimator.clip_gradients_by_norm(
-            tf.train.FtrlOptimizer(learning_rate=lr),
+            tf.train.GradientDescentOptimizer(learning_rate=lr),
             5.0)
 
     if not model:
-        if classifier:
-            model = tf.estimator.LinearClassifier(fcs, optimizer=opt)
-        else:
-            model = tf.estimator.LinearRegressor(fcs, optimizer=opt)
+        model = tf.estimator.DNNRegressor(hidden_units, fcs, optimizer=opt)
 
     for _ in range(10):
         model.train(
@@ -216,14 +231,14 @@ def validate(model, examples, labels, features=None):
     ds = Ds.from_tensor_slices(
         ({feature: examples[feature] for feature in features}, labels))
     predictions = get_predictions(model, ds)
-    plt.close()
+    plt.figure()
     plt.subplot(1, 2, 1)
     plt.scatter(examples['longitude'], examples['latitude'], cmap='coolwarm',
                 c=labels.iloc[:, 0])
     plt.subplot(1, 2, 2)
     plt.scatter(examples['longitude'], examples['latitude'], cmap='coolwarm',
                 c=predictions)
-    if type(model) == tf.estimator.LinearClassifier:
+    if "classifier" in str(type(model)).casefold():
         print("Validation log loss:", log_loss(labels, predictions))
     else:
         print("Validation mse:", mse(predictions, labels))
@@ -264,25 +279,32 @@ binned = {"longitude": 50,
           "households": 10,
           "median_income": None,
           "rooms_per_person": None}
-trained = train(training_examples, training_labels,  # model=trained,
-                features=binned.keys(), bucket_sizes=binned,
-                crosses=[["latitude", "longitude"]], l1_strength=0.5,
-                lr=1e-1, classifier=True, steps=500, batch_size=50)
+trained = train(training_examples,
+                training_labels,
+                # model=trained,
+                hidden_units=[20, 10],
+                features=binned.keys(),
+                bucket_sizes=binned,
+                # crosses=[["latitude", "longitude"]],
+                # l1_strength=0.5,
+                lr=3e-2, steps=100, batch_size=10)
 
 # Find number of nonzero weights.
 print("Number of nonzero weights:", count_nonzero_weights(trained))
 
 
 # Validate.
-y = validate(trained, validation_examples,
-             validation_labels, features=binned.keys())
+y = validate(trained, validation_examples, validation_labels,
+             features=binned.keys())
 
 # Evaluate the model.
 res = evaluate(trained, validation_examples, validation_labels)
 
 # Plot the ROC curve.
-fpr, tpr, thresholds = roc_curve(validation_labels, y)
-plt.plot(fpr, tpr, [0, 1], [0, 1])
+if "classifier" in str(type(trained)).casefold():
+    fpr, tpr, thresholds = roc_curve(validation_labels, y)
+    plt.figure()
+    plt.plot(fpr, tpr, [0, 1], [0, 1])
 
 will_test = False
 if will_test:
@@ -298,5 +320,7 @@ if will_test:
     ty = validate(trained, test_examples, test_labels, features=binned.keys())
     tres = evaluate(trained, test_examples,
                     test_labels, features=binned.keys())
-    tfpr, ttpr, thresholds = roc_curve(test_labels, ty)
-    plt.plot(tfpr, ttpr, [0, 1], [0, 1])
+    if "classifier" in str(type(trained)).casefold():
+        tfpr, ttpr, thresholds = roc_curve(test_labels, ty)
+        plt.figure()
+        plt.plot(tfpr, ttpr, [0, 1], [0, 1])

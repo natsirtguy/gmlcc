@@ -36,7 +36,7 @@
 * Stochastic gradient descent, SGD:
   Gradient descent using only a single example at a time
 * Feature column in tf:
-  Construct describing datatype for input to TF
+  Construct describing data type for input to TF
 * If training error decreases slowly:
   Increase the learning rate
 * If training error fluctuates a lot:
@@ -108,7 +108,7 @@
 * Create a crossed column:
   tf.feature_column.crossed_column(cols_to_cross, hash_bucket_size)
 * hash_bucket_size in crossed column:
-  Basically, crossed feature are transformed to hash(cartesian product of features) % bucket_size
+  Basically, crossed feature are transformed to hash(Cartesian product of features) % bucket_size
 * Validation loss begins to increase while training loss decreases:
   Starting to overfit
 * Extra term in loss function that only knows about weights:
@@ -117,7 +117,7 @@
   Helps control model complexity to avoid overfitting
 * L2 regularizer:
   Keeps the weights as small as possible --- prior is zero weights
-* Cases where you are more likely to need strong reglarization:
+* Cases where you are more likely to need strong regularization:
   Whenever overfitting is a danger, e.g. small, noisy data sets
 * Regularization in logistic models:
   Is very important, because in high dimensions tries hard to drive loss to zero, need to penalize large weights
@@ -152,7 +152,7 @@
 * AUC (or AUROC):
   Area under ROC curve, probability that model gets pairwise ranking of positive, negative correct (does not depend on threshold)
 * Prediction bias:
-  Difference between sum of things we predict and sum of things we observe
+  Difference between average of things we predict and average of things we observe
 * Harmonic mean:
   Reciprocal of arithmetic mean of reciprocals (makes sense for rates)
 * F1 score:
@@ -164,7 +164,7 @@
 * True positive rate:
   Same as the recall, (true positive)/(actual positive)
 * False positive rate:
-  (false positve)/(actual negative)
+  (false positive)/(actual negative)
 * Direction of raising the classification threshold on the ROC curve:
   Down and left, because fewer items are classified as positive
 * Steps to prove AUC = probability of correct ordering:
@@ -176,21 +176,21 @@
 * Prediction bias:
   Difference between average of predictions and average of observations
 * Possible causes for prediction bias:
-  BINBO: buggy pipeline, incomplete features, nosiy data, biased training set, overly strong regularization
+  BINBO: buggy pipeline, incomplete features, noisy data, biased training set, overly strong regularization
 * Calibration layer:
   Layer that removes prediction bias from model output
 * Problems with calibration layer:
   Fixing symptom, not cause, and brittle
 * Low prediction bias is (necessary/sufficient) to have a good model:
   Necessary but not sufficient
-* You must bucekt predictions to see bias:
+* You must bucket predictions to see bias:
   Because output is binary, need to see ensemble
 * Calibration plot:
-  Shows the label vs prediction for buckets of sorted examples, to see bias at different values of predicition
+  Shows the label vs prediction for buckets of sorted examples, to see bias at different values of prediction
 * If model is badly calibrated for only some regions:
   Training data might not sample regions, some subsets are noisy, too regularized (or just look-elsewhere)
 * Create linear classifier in tensorflow:
-  model = tf.estimator.LinearClassifier(feature_columsn, optimizer=optimizer)
+  model = tf.estimator.LinearClassifier(feature_columns, optimizer=optimizer)
 * Log-odds is also called:
   logit
 * Fields in dictionaries returned by linear_classifier.predict() with boolean category:
@@ -198,10 +198,46 @@
 * logistic in linear_classifier.predict() elements:
   The value of the sigmoid function for the given prediction
 * probabilities in linear_classifier.predict() elements:
-  Array of probabilities of the different classes, probabilities[0] is prob that it is false for Boolean, probabilities[1] is equivalent to logistic
-* classes in linear_regressor.predict() elements:
+  Array of probabilities of the different classes, probabilities[0] is probability that it is false for Boolean, probabilities[1] is equivalent to logistic
+* classes in linear_classifier.predict() elements:
   Array with the most likely class for the given prediction
-* class_id in linear_regressor.predict() elements:
+* class_ids in linear_classifier.predict() elements:
   Array with the class id (an int) of most likely prediction, so element["probabilities"][element["class_ids"][0]] is the max of probabilities
 * Evaluate the performance of a tensorflow model:
   model.evaluate(input_fn=validation_fn)
+* Get true positive rate and false positive rate in python:
+  fpr, tpr, thresholds = sklearn.metrics.roc_curve(true_labels, logistics)
+* Problem with feature crosses in large, sparse data:
+  The crossed features become very high dimensional and even sparser
+* Does L2 regularization penalize nonzero weights:
+  No, it drives weights to small but nonzero values (derivative shrinks)
+* Is it possible to use "L0" regularization (penalize number of weights):
+  Not really, becomes nonconvex and NP-hard
+* L1 penalizes:
+  The sum of the absolute value of the weights
+* Possible drawback of L1 setting values to zero:
+  If the true minimum of the loss function involves a nonzero weight and a local minima involves setting that to zero, the weight could get set to zero early in the training process and stay there
+* Can we get nonlinearity be simply introducing additional layers:
+  No, not if the layers are linearly combining input
+* Simple nonlinearity sometimes used in neural nets:
+  ReLU, rectified linear unit, just cuts off function at zero for negative values
+* Why initialization can matter a lot for neural nets:
+  Nonlinear means nonconvex optimization
+* Another name for nonlinear transformation layer:
+  Activation function, from neurons
+* Tool to do gradient descent on nonlinear models:
+  Backpropagation
+* Advantage of neural networks over feature crosses:
+  More flexible, work in more cases, don't need to see the structure and create features
+* Manifold hypothesis:
+  Natural data forms lower-dimensional submanifolds in its embedding space
+* Relationship between number of layers and topology:
+  The number of layers is effectively the dimensionality of the embedding space, so increasing the dimensionality allows us to untangle more things
+* Create a neural network regressor in tf with 3 nodes in first layer, 4 in second:
+  tf.estimator.DNNRegressor([3,4], fcs, optimizer=optimizer)
+* Keyword argument, default for activation function in DDNRegressor:
+  activation_fn, tf.nn.relu
+*
+#  LocalWords:  tf ds fn xs ys iid std argmax dataframe exp ROC AUC
+#  LocalWords:  AUROC TP FP BINBO logit logits ids int ReLU
+

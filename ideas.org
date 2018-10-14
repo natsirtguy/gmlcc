@@ -1,4 +1,3 @@
-My thoughts
 * Reason about/look for symmetries in data
 ** A priori
    Use intuition/subject knowledge to identify invariants
@@ -18,3 +17,70 @@ My thoughts
 * Sigmoids in logistic regression look like Fermi distributions
 ** Log loss looks like entropy in Fermionic contexts
 ** Might be possible to encode logistic models into Fermionic QFT
+* More thoughts on relationship to field theory:
+** The loss function really is a functional:
+   This is because the model is not really just a vector of weights,
+   it is meant to be a function. So the loss function is simply a
+   functional on a restricted function space, like degree-n with n
+   finite polynomials etc.
+** Learning algorithm is a poor man's variational principle:
+   We are just moving towards minima via gradient descent instead of
+   solving for the minima directly via some set of differential
+   equations.
+** Regularizers are mass terms in the action
+   They encourage the fields to take on smaller values.
+** Big picture
+   We are just solving the variational problem in the presence of
+   sources with a mass term on a restricted function space.
+** "Power" of machine learning might come from the restriction of the function space
+   Without regularization, the function which minimizes the loss on
+   the training set should basically just look like a delta function
+   at each source term. Because we truncate the space of functions,
+   delta functions are not allowed, it is impossible to localize the
+   weight of the model to the source terms. Furthermore, the presence
+   of the mass term (regularizer) means that it can't actually be a
+   delta function, because then there would be a divergent action
+   (loss) from the squared delta function. 
+* The true model depends on the probability distribution of the examples
+** Some transformation of the pdf (possibly a convolution or integral transform)
+** Our goal is to deduce the shape of the pdf by sampling from it
+** An ideal learning system algorithm exactly reproduces the PDF
+** We should be smearing the sources
+   We want to achieve generalizability by allowing the model to
+   correctly predict the value of the labels given nearby features. We
+   do this by placing restrictions on the model (field configuration)
+   --- either restricting the function space that it is allowed to
+   live in or adding a regularizer (mass term, effectively to prevent delta
+   functions). But logically, we should be smearing out the sources
+   themselves, then trying to exactly fit the resulting function.
+* I really think the "power" is coming from functional restrictions on the model
+  I'm becoming more convinced that machine learning should be useful
+  only when the restriction to a certain set of functions accurately
+  reproduces some underlying feature of the examples (source fields).
+* Why can't we just directly map out the features, smear, then interpolate?
+  Pretty sure it's just too computationally expensive. The trick of
+  stochastic or batch gradient descent is that we are basically only
+  considering single source terms (examples) at a time.
+* TODO Find way to use variational methods
+** Possibilities:
+*** Restrict the allowed functional forms
+*** 
+* Shape of the features
+** Think of shape as a polyhedron, or skeleton of polyhedron
+** Vertices are the features
+** Edges are the correlations between the features
+** Approximating an infinite collection of features
+   Think of the set of features as a sample of an infinite number of
+   features describing each example. This makes some sense, in that we
+   can imagine the underlying atomic configurations or quantum state
+   of the thing the example is supposed to model as the "true" object,
+   and the example is a sampling of the relevant features for the
+   question at hand. Then imagine this describes a sampling of
+   spacetime, or perhaps source field values at different spacetime
+   points.
+** Encode causal structure of features into geometry of spacetime
+   Perhaps we can alter the embedding of the feature polyhedron in
+   spacetime to include the causal data via Krzysztof's methods.
+** See [[https://arxiv.org/abs/1208.3145][Metric distances derived from cosine similarity and Pearson and Spearman correlations]]
+* Contractive penalities look like derivative terms in action
+** These penalize large derivatives of layers at data points
