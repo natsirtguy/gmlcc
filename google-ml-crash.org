@@ -237,7 +237,42 @@
   tf.estimator.DNNRegressor([3,4], fcs, optimizer=optimizer)
 * Keyword argument, default for activation function in DDNRegressor:
   activation_fn, tf.nn.relu
-*
-#  LocalWords:  tf ds fn xs ys iid std argmax dataframe exp ROC AUC
-#  LocalWords:  AUROC TP FP BINBO logit logits ids int ReLU
+* Another word for loss function in neural networks:
+  Error function
+* Update rule involving error derivative:
+  new weights = old weights - (learning rate)*(d Error)/(d weights)
+* Backpropagation is basically just this from calculus:
+  The chain rule --- we compute derivatives wrt weights by looking at partial derivatives involving outputs and activation functions
+* Use of dynamic programming in neural networks:
+  For backpropagation, allows you to avoid recomputing many derivatives
+* Property of loss function for backpropagation to work:
+  Must be differentiable
+* Reason to keep number of layers small:
+  Decreasing signal to noise ratio means useful gradients in backpropagation can shrink
+* Useful to avoid small gradients:
+  ReLU, because derivative is not scaled
+* Batch normalization:
+  Using the average gradient steps from several examples in a batch
+* Three ways to avoid exploding gradients:
+  Reduce learning rate, scale input features, use batch normalization
+* Dropout:
+  On a gradient step, basically ignore a given neuron with some probability
+* Dropout is a form of regularization in that:
+  In some sense it reduces the model complexity --- not using the whole model the whole time
+* Ways backpropagation can fail:
+  Vanishing/exploding gradients, ReLU failure
+* Which neurons are likely to have small/large gradients:
+  Closer to input, because product of many terms, which can be small or large
+* ReLUs can die:
+  If sum of inputs drop below zero (no contribution to gradient)
+* Avoid dead ReLUs:
+  Try reducing learning rate, change initialization
+* Dynamic programming:
+  Breaking a problem up into smaller problems that tend to repeat and memoizing the results to avoid recomputing
+* Adagrad optimizer:
+  Adaptive gradient descent, monotonically lowers the rate for each coefficient separately
+* 
 
+#  LocalWords:  tf ds fn xs ys iid std argmax dataframe exp ROC AUC
+#  LocalWords:  AUROC TP FP BINBO logit logits ids int ReLU fcs ReLUs
+#  LocalWords:  DDNRegressor memoizing

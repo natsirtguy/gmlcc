@@ -64,7 +64,7 @@
 * TODO Find way to use variational methods
 ** Possibilities:
 *** Restrict the allowed functional forms
-*** 
+*** Improve the method of searching for minima
 * Shape of the features
 ** Think of shape as a polyhedron, or skeleton of polyhedron
 ** Vertices are the features
@@ -84,3 +84,5 @@
 ** See [[https://arxiv.org/abs/1208.3145][Metric distances derived from cosine similarity and Pearson and Spearman correlations]]
 * Contractive penalities look like derivative terms in action
 ** These penalize large derivatives of layers at data points
+* Think about neural networks as information encoders
+** Training = optimal way to encode training data
