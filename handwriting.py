@@ -1,11 +1,12 @@
 '''Use machine learning to classify handwritten digits.'''
 
 import os
+import glob
 import numpy as np
 import pandas as pd
 import matplotlib
 from sklearn.metrics import mean_squared_error as mse
-from sklearn.metrics import log_loss, roc_curve
+from sklearn.metrics import log_loss, roc_curve, confusion_matrix
 import tensorflow as tf
 from tensorflow.data import Dataset as Ds
 matplotlib.use('TkAgg')
@@ -72,8 +73,8 @@ def get_predictions(model, ds):
         lambda: ds.batch(1).make_one_shot_iterator().get_next())
     preds = list(preds)
     probabilities = np.vstack(pred["probabilities"] for pred in preds)
-    classes = np.vstack(pred["classes"] for pred in preds)
-    return probabilities, classes
+    class_ids = np.vstack(pred["class_ids"] for pred in preds)
+    return probabilities, class_ids
 
 
 def bucketize(feature, fc, n_bins):
@@ -135,11 +136,16 @@ def train(examples, labels, hidden_units=None, features=None, lr=1e-4,
             config=tf.estimator.RunConfig(keep_checkpoint_max=1))
 
     for _ in range(10):
-        model.train(
-            train_fn(ds, batch_size=batch_size),
-            steps=steps//10)
-        predictions, classes = get_predictions(model, ds)
-        print("Log loss:", log_loss(labels, predictions))
+        try:
+            model.train(
+                train_fn(ds, batch_size=batch_size),
+                steps=steps//10)
+            predictions, class_ids = get_predictions(model, ds)
+            print("Log loss:", log_loss(labels, predictions))
+        except KeyboardInterrupt:
+            print("\nTraining stopped by user.")
+            print("Final log loss:", log_loss(labels, predictions))
+            break
 
     return model
 
@@ -151,16 +157,16 @@ def validate(model, examples, labels, features=None):
 
     ds = Ds.from_tensor_slices(
         ({"pixels": features}, np.array(labels)))
-    predictions, classes = get_predictions(model, ds)
+    predictions, class_ids = get_predictions(model, ds)
     print("Validation log loss:", log_loss(labels, predictions))
 
-    return predictions, classes
+    return predictions, class_ids
 
 
 def evaluate(model, examples, labels, features=None):
     '''Check the mse on the validation set. '''
     if not features:
-        features = examples.columns
+        features = examples.values
 
     ds = Ds.from_tensor_slices(
         ({"pixels": features}, np.array(labels)))
@@ -194,23 +200,45 @@ trained = train(training_examples,
                 # crosses=[["latitude", "longitude"]],
                 # l1_strength=0.5,
                 lr=3e-2, steps=100, batch_size=10)
+# Remove tf events
+list(map(os.remove,
+         glob.glob(os.path.join(trained.model_dir, "events.out.tfevents*"))))
+
 
 # Find number of nonzero weights.
 print("Number of nonzero weights:", count_nonzero_weights(trained))
 
 
 # Validate.
-y, y_classes = validate(trained, validation_examples, validation_labels)
+y, y_class_ids = validate(trained, validation_examples, validation_labels)
 
 
 # Evaluate the model.
 res = evaluate(trained, validation_examples, validation_labels)
+
+# Create the confusion matrix and scale for number of examples.
+cm = confusion_matrix(validation_labels, y_class_ids)
+cmc = cm.copy()
+cmc = cmc/cmc.sum(axis=1).reshape(1, 10)
+plt.matshow(cmc)
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Confusion matrix")
+
+# Show only off-diagonal.
+cmc[range(10), range(10)] = 0
+plt.matshow(cmc)
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Off-diagonal confusion matrix")
+
 
 # Plot the ROC curve.
 # if "classifier" in str(type(trained)).casefold():
 #     fpr, tpr, thresholds = roc_curve(validation_labels, y)
 #     plt.figure()
 #     plt.plot(fpr, tpr, [0, 1], [0, 1])
+
 
 will_test = False
 if will_test:

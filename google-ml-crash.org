@@ -151,8 +151,6 @@
   Receiver operating characteristics curve, how model does with all thresholds, true positives rate vs false positive rate
 * AUC (or AUROC):
   Area under ROC curve, probability that model gets pairwise ranking of positive, negative correct (does not depend on threshold)
-* Prediction bias:
-  Difference between average of things we predict and average of things we observe
 * Harmonic mean:
   Reciprocal of arithmetic mean of reciprocals (makes sense for rates)
 * F1 score:
@@ -293,8 +291,12 @@
   tf.feature_column.numeric_column("pixels", 1600)
 * sklearn.metrics.log_loss does/does not work with multiple classes:
   It does, just feed an array with dimension (n_examples, n_classes) as second argument (prediction)
+* tensorflow function to one-hot encode array of integers:
+  tf.keras.util.to_categorical(array, n_classes)
+* Confusion matrix function:
+  sklearn.metrics.confusion_matrix(targets, predictions)
 * 
 
 #  LocalWords:  tf ds fn xs ys iid std argmax dataframe exp ROC AUC
 #  LocalWords:  AUROC TP FP BINBO logit logits ids int ReLU fcs ReLUs
-#  LocalWords:  DDNRegressor memoizing Adagrad Softmax
+#  LocalWords:  DDNRegressor memoizing Adagrad Softmax len
