@@ -95,12 +95,13 @@ def bucketize(feature, fc, n_bins):
 
 def train(examples, labels, hidden_units=None, features=None, lr=1e-4,
           steps=100, optimizer=tf.train.GradientDescentOptimizer,
-          l1_strength=None, batch_size=1, model=None):
+          l1_strength=None, batch_size=1, model=None, dropout=None):
     '''Create and train a linear model.
 
     Args:
       examples: pandas.DataFrame with examples
       labels: pandas.DataFrame with labels
+      hidden_units: list of ints, number of neurons per layer
       features: list of selected features from examples
       bucket_sizes: dict with size of buckets; if a value is None,
         don't bucketize that feature
@@ -129,11 +130,18 @@ def train(examples, labels, hidden_units=None, features=None, lr=1e-4,
     opt = tf.contrib.estimator.clip_gradients_by_norm(opt, 5.0)
 
     if not model:
-        model = tf.estimator.LinearClassifier(
-            fcs,
-            optimizer=opt,
-            n_classes=len(np.unique(labels)),
-            config=tf.estimator.RunConfig(keep_checkpoint_max=1))
+        m_kwargs = {'feature_columns': fcs,
+                    'optimizer': opt,
+                    'n_classes': len(np.unique(labels)),
+                    'config': tf.estimator.RunConfig(keep_checkpoint_max=1)}
+        if hidden_units:
+            m_type = tf.estimator.DNNClassifier
+            m_kwargs['hidden_units'] = hidden_units
+            m_kwargs['dropout'] = dropout
+        else:
+            m_type = tf.estimator.LinearClassifier
+
+        model = m_type(**m_kwargs)
 
     for _ in range(10):
         try:
@@ -191,30 +199,48 @@ def count_nonzero_weights(model):
 
 
 # Train.
-trained = train(training_examples,
-                training_labels,
-                optimizer=tf.train.AdagradOptimizer,
-                # model=trained,
-                # hidden_units=[20, 10],
-                # features=chosen,
-                # crosses=[["latitude", "longitude"]],
-                # l1_strength=0.5,
-                lr=3e-2, steps=100, batch_size=10)
+trained_linear = train(training_examples,
+                       training_labels,
+                       optimizer=tf.train.AdagradOptimizer,
+                       # model=trained,
+                       # hidden_units=[20, 10],
+                       # features=chosen,
+                       # crosses=[["latitude", "longitude"]],
+                       # l1_strength=0.5,
+                       lr=1e-1, steps=100, batch_size=10)
 # Remove tf events
 list(map(os.remove,
-         glob.glob(os.path.join(trained.model_dir, "events.out.tfevents*"))))
+         glob.glob(os.path.join(
+             trained_linear.model_dir, "events.out.tfevents*"))))
+
+
+trained_nn = train(training_examples,
+                   training_labels,
+                   optimizer=tf.train.AdamOptimizer,
+                   # model=trained,
+                   hidden_units=[784, 392, 196],
+                   dropout=.1,
+                   # features=chosen,
+                   # crosses=[["latitude", "longitude"]],
+                   # l1_strength=0.5,
+                   lr=3e-2, steps=200, batch_size=50)
+# Remove tf events
+list(map(os.remove,
+         glob.glob(os.path.join(
+             trained_nn.model_dir, "events.out.tfevents*"))))
 
 
 # Find number of nonzero weights.
-print("Number of nonzero weights:", count_nonzero_weights(trained))
+print("Number of nonzero weights:", count_nonzero_weights(trained_nn))
 
 
 # Validate.
-y, y_class_ids = validate(trained, validation_examples, validation_labels)
+y, y_class_ids = validate(trained_nn, validation_examples,
+                          validation_labels)
 
 
 # Evaluate the model.
-res = evaluate(trained, validation_examples, validation_labels)
+res = evaluate(trained_nn, validation_examples, validation_labels)
 
 # Create the confusion matrix and scale for number of examples.
 cm = confusion_matrix(validation_labels, y_class_ids)
@@ -232,27 +258,29 @@ plt.xlabel("Predicted")
 plt.ylabel("Actual")
 plt.title("Off-diagonal confusion matrix")
 
-
-# Plot the ROC curve.
-# if "classifier" in str(type(trained)).casefold():
-#     fpr, tpr, thresholds = roc_curve(validation_labels, y)
-#     plt.figure()
-#     plt.plot(fpr, tpr, [0, 1], [0, 1])
+# Construct ROC curves for each class.
+for i in range(len(y[0])):
+    prob = y[:, i]
+    fpr, tpr, thesholds = roc_curve(validation_labels == i, prob)
+    plt.figure()
+    plt.plot(fpr, tpr, [0, 1], [0, 1])
+    plt.title(f"ROC curve for class {i}")
+    plt.xlabel("FPR")
+    plt.ylabel("TPR")
 
 
 will_test = False
 if will_test:
     # Get the test data.
-    chdt = pd.read_csv(
-        "https://download.mlcc.google.com"
-        "/mledu-datasets/california_housing_test.csv",
-        sep=",")
-    test_examples = preprocess(chdt)
-    test_labels = preprocess_labels(chdt)
+    mnistt = pd.read_csv(
+        "https://download.mlcc.google.com/mledu-datasets/mnist_test.csv",
+        sep=",", header=None)
+    test_examples = preprocess(mnistt)
+    test_labels = preprocess_labels(mnistt)
 
     # Check the test.
-    ty = validate(trained, test_examples, test_labels)
-    tres = evaluate(trained, test_examples, test_labels)
+    ty = validate(trained_nn, test_examples, test_labels)
+    tres = evaluate(trained_nn, test_examples, test_labels)
     # if "classifier" in str(type(trained)).casefold():
     #     tfpr, ttpr, thresholds = roc_curve(test_labels, ty)
     #     plt.figure()
