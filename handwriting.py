@@ -70,11 +70,10 @@ def get_predictions(model, ds):
     '''Retrieve predictions from model.'''
     preds = model.predict(
         lambda: ds.batch(1).make_one_shot_iterator().get_next())
-    if "classifier" in str(type(model)).casefold():
-        pred_name = 'logistic'
-    else:
-        pred_name = 'predictions'
-    return np.hstack(pred[pred_name] for pred in preds)
+    preds = list(preds)
+    probabilities = np.vstack(pred["probabilities"] for pred in preds)
+    classes = np.vstack(pred["classes"] for pred in preds)
+    return probabilities, classes
 
 
 def bucketize(feature, fc, n_bins):
@@ -93,8 +92,8 @@ def bucketize(feature, fc, n_bins):
     return tf.feature_column.bucketized_column(fc, qs)
 
 
-def train(examples, labels, hidden_units=None, features=None, bucket_sizes=None,
-          crosses=None, classifier=False, lr=1e-4, steps=100,
+def train(examples, labels, hidden_units=None, features=None, lr=1e-4,
+          steps=100, optimizer=tf.train.GradientDescentOptimizer,
           l1_strength=None, batch_size=1, model=None):
     '''Create and train a linear model.
 
@@ -102,7 +101,6 @@ def train(examples, labels, hidden_units=None, features=None, bucket_sizes=None,
       examples: pandas.DataFrame with examples
       labels: pandas.DataFrame with labels
       features: list of selected features from examples
-      classifier: Boolean, whether to train a classifier
       bucket_sizes: dict with size of buckets; if a value is None,
         don't bucketize that feature
       crosses: list of lists of features to be crossed
@@ -110,72 +108,38 @@ def train(examples, labels, hidden_units=None, features=None, bucket_sizes=None,
       l1_strength: float, strength of L1 regularization
       steps: int, number of steps to train
       batch_size: int, number of examples per batch
-      model: tensorflow LinearRegressor or LinearClassifer,
-        previously trained model
+      model: tensorflow LinearClassifier, previously trained model
 
     Returns:
-      A trained tensorflow.estimator.LinearRegressor.
+      A trained tensorflow.estimator.LinearClassifier.
     '''
 
     # Create feature columns and dictionary mapping feature names to them.
-    if not features:
-        features = examples.columns
-    fcdict = {str(feature): tf.feature_column.numeric_column(str(feature))
-              for feature in features}
-    fcs = fcdict.values()
-
-    # Use buckets if bucket_sizes is specified.
-    if bucket_sizes:
-        if len(bucket_sizes) != len(features):
-            raise ValueError(
-                'The number of buckets must match the number of features.')
-
-        fcdict = {str(feature):
-                  bucketize(examples[feature], fc, bucket_sizes[feature])
-                  if bucket_sizes[feature] else fc
-                  for feature, fc in fcdict.items()}
-
-        fcs = fcdict.values()
-
-    # Use crossed columns if crosses is specified.
-    if crosses:
-        for cross in crosses:
-            cross_name = '_x_'.join(cross)
-            cross_fc = [fcdict[feature] for feature in cross]
-            fcdict[cross_name] = tf.feature_column.crossed_column(
-                cross_fc, 1000)
-
-        fcs = fcdict.values()
+    fcs = set([tf.feature_column.numeric_column('pixels', shape=784)])
 
     ds = Ds.from_tensor_slices(
-        ({str(feature): examples[feature] for feature in features},
-         np.array(labels)))
+        ({"pixels": examples.values}, np.array(labels)))
 
     if l1_strength:
-        opt = tf.contrib.estimator.clip_gradients_by_norm(
-            tf.train.GradientDescentOptimizer(
-                learning_rate=lr, l1_regularization_strength=l1_strength),
-            5.0)
+        opt = optimizer(
+            learning_rate=lr, l1_regularization_strength=l1_strength)
     else:
-        opt = tf.contrib.estimator.clip_gradients_by_norm(
-            tf.train.GradientDescentOptimizer(learning_rate=lr),
-            5.0)
+        opt = optimizer(learning_rate=lr)
+    opt = tf.contrib.estimator.clip_gradients_by_norm(opt, 5.0)
 
     if not model:
-        if classifier:
-            model = tf.estimator.LinearClassifier(fcs, optimizer=opt)
-        else:
-            model = tf.estimator.LinearRegressor(fcs, optimizer=opt)
+        model = tf.estimator.LinearClassifier(
+            fcs,
+            optimizer=opt,
+            n_classes=len(np.unique(labels)),
+            config=tf.estimator.RunConfig(keep_checkpoint_max=1))
 
     for _ in range(10):
         model.train(
             train_fn(ds, batch_size=batch_size),
             steps=steps//10)
-        predictions = get_predictions(model, ds)
-        if classifier:
-            print("Log loss:", log_loss(labels, predictions))
-        else:
-            print("Mean squared error:", mse(predictions, labels))
+        predictions, classes = get_predictions(model, ds)
+        print("Log loss:", log_loss(labels, predictions))
 
     return model
 
@@ -183,15 +147,13 @@ def train(examples, labels, hidden_units=None, features=None, bucket_sizes=None,
 def validate(model, examples, labels, features=None):
     '''Check the mse on the validation set. '''
     if not features:
-        features = examples.columns
+        features = examples.values
 
     ds = Ds.from_tensor_slices(
-        ({str(feature): examples[feature] for feature in features}, labels))
-    predictions = get_predictions(model, ds)
-    if "classifier" in str(type(model)).casefold():
-        print("Validation log loss:", log_loss(labels, predictions))
-    else:
-        print("Validation mse:", mse(predictions, labels))
+        ({"pixels": features}, np.array(labels)))
+    predictions, classes = get_predictions(model, ds)
+    print("Validation log loss:", log_loss(labels, predictions))
+
     return predictions
 
 
@@ -201,7 +163,7 @@ def evaluate(model, examples, labels, features=None):
         features = examples.columns
 
     ds = Ds.from_tensor_slices(
-        ({str(feature): examples[feature] for feature in features}, labels))
+        ({"pixels": features}, np.array(labels)))
 
     results = model.evaluate(
         lambda: ds.batch(1).make_one_shot_iterator().get_next())
@@ -225,7 +187,7 @@ def count_nonzero_weights(model):
 # Train.
 trained = train(training_examples,
                 training_labels,
-                classifier=True,
+                optimizer=tf.train.AdagradOptimizer,
                 # model=trained,
                 # hidden_units=[20, 10],
                 # features=chosen,
@@ -244,10 +206,10 @@ y = validate(trained, validation_examples, validation_labels)
 res = evaluate(trained, validation_examples, validation_labels)
 
 # Plot the ROC curve.
-if "classifier" in str(type(trained)).casefold():
-    fpr, tpr, thresholds = roc_curve(validation_labels, y)
-    plt.figure()
-    plt.plot(fpr, tpr, [0, 1], [0, 1])
+# if "classifier" in str(type(trained)).casefold():
+#     fpr, tpr, thresholds = roc_curve(validation_labels, y)
+#     plt.figure()
+#     plt.plot(fpr, tpr, [0, 1], [0, 1])
 
 will_test = False
 if will_test:
@@ -262,7 +224,7 @@ if will_test:
     # Check the test.
     ty = validate(trained, test_examples, test_labels)
     tres = evaluate(trained, test_examples, test_labels)
-    if "classifier" in str(type(trained)).casefold():
-        tfpr, ttpr, thresholds = roc_curve(test_labels, ty)
-        plt.figure()
-        plt.plot(tfpr, ttpr, [0, 1], [0, 1])
+    # if "classifier" in str(type(trained)).casefold():
+    #     tfpr, ttpr, thresholds = roc_curve(test_labels, ty)
+    #     plt.figure()
+    #     plt.plot(tfpr, ttpr, [0, 1], [0, 1])

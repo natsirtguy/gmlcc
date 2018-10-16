@@ -289,6 +289,10 @@
   When training, only compute the probabilities for positives labels and a random sample of negative labels
 * If there are many positive labels in a multi-class problem:
   It doesn't make sense use Softmax
+* Create feature column called "pixels" that will hold arrays with len 1600:
+  tf.feature_column.numeric_column("pixels", 1600)
+* sklearn.metrics.log_loss does/does not work with multiple classes:
+  It does, just feed an array with dimension (n_examples, n_classes) as second argument (prediction)
 * 
 
 #  LocalWords:  tf ds fn xs ys iid std argmax dataframe exp ROC AUC
