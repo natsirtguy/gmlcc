@@ -1,7 +1,6 @@
-'''Practice using neural nets.'''
+'''Use machine learning to classify handwritten digits.'''
 
 import os
-import itertools
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -22,79 +21,43 @@ pd.options.display.max_rows = 11
 pd.options.display.float_format = '{:.2f}'.format
 
 # Get data.
-chd = pd.read_csv(
-    "https://download.mlcc.google.com"
-    "/mledu-datasets/california_housing_train.csv", sep=",")
+mnist = pd.read_csv(
+    "https://download.mlcc.google.com/mledu-datasets/mnist_train_small.csv",
+    sep=",", header=None)
+mnist = mnist.head(10000)
 
 
-def preprocess(hdf):
-    '''Preprocess features, selecting some and making a new one.'''
-    processed = hdf[list(set(hdf.columns) - {'median_house_value'})].copy()
-    processed['rooms_per_person'] = hdf['total_rooms']/hdf['population']
+def preprocess(df):
+    '''Preprocess features.'''
+    processed = (df.loc[:, 1:]/255).copy()
     return processed
 
 
-def preprocess_labels(hdf):
-    '''Preprocess label by dividing by 1000.'''
-    labels_df = hdf.copy()[['median_house_value']]
-    labels_df['median_house_value'] /= 1000
+def preprocess_labels(df):
+    '''Preprocess label.'''
+    labels_df = df.loc[:, 0:0].copy()
     return labels_df
 
 
-def examine(df):
-    '''Examine data in dataframe.'''
-    for i in range(0, len(df.columns), 2):
-        print(df.iloc[:, i:i+2].describe())
-
-
 # Permute to avoid selecting data from one part of California.
-perm = np.random.permutation(chd.index)
-training_examples = preprocess(chd).iloc[perm[:12000], :]
-training_labels = preprocess_labels(chd).iloc[perm[:12000], :]
-validation_examples = preprocess(chd).iloc[perm[12000:], :]
-validation_labels = preprocess_labels(chd).iloc[perm[12000:], :]
+perm = np.random.permutation(mnist.index)
+training_examples = preprocess(mnist).iloc[perm[:7500], :]
+training_labels = preprocess_labels(mnist).iloc[perm[:7500], :]
+validation_examples = preprocess(mnist).iloc[perm[7500:], :]
+validation_labels = preprocess_labels(mnist).iloc[perm[7500:], :]
 
 
-def scatter_pairs(df):
-    '''Show scatter plots of pairs of features against each other.'''
-    for f1, f2 in itertools.combinations(df.columns, 2):
-        plt.figure()
-        plt.plot(df[f1], df[f2], '.')
-        plt.xlabel(f1)
-        plt.ylabel(f2)
+def show_digit(example):
+    '''Show a digit from an mnist example.'''
+    plt.matshow(np.array(example[1:]).reshape(28, 28))
+    plt.title(f"Label: {example[0]}")
 
 
-show_scatters = False
-if show_scatters:
-    scatter_pairs(chd)
-
-will_examine = False
-if will_examine:
-    # Examine the data.
-    print("Training examples:")
-    examine(training_examples)
-    print()
-    print("Training labels:")
-    examine(training_labels)
-    print()
-    print("Validation examples:")
-    examine(validation_examples)
-    print()
-    print("Validation labels:")
-    examine(validation_labels)
-    print()
-    correlation_data = training_examples.copy()
-    correlation_data['targets'] = training_labels['median_house_value']
-    corrd = correlation_data.corr()
-    print("Correlation to label:")
-    print(corrd.iloc[-11:-1, -1])
-
-
-for e, l in [(training_examples, training_labels),
-             (validation_examples, validation_labels)]:
-    plt.figure()
-    plt.scatter(e['longitude'], e['latitude'], cmap='coolwarm',
-                c=l["median_house_value"])
+# Show some choice of training, validation digits.
+show_digit(np.hstack((training_labels.iloc[37],
+                      training_examples.iloc[37])))
+show_digit(np.hstack((validation_labels.iloc[37],
+                      validation_examples.iloc[37])))
 
 
 def train_fn(ds, shuffle=True, batch_size=1, repeat=None):
@@ -112,15 +75,6 @@ def get_predictions(model, ds):
     else:
         pred_name = 'predictions'
     return np.hstack(pred[pred_name] for pred in preds)
-
-
-def o_h_encode(feature, df):
-    '''One-hot encode a categorical Series feature in dataframe df.'''
-    f_name = feature.name if feature.name else str(id(feature))
-    values = set(feature)
-    for value in values:
-        df[f_name + '_' + str(value)] = (feature == value)
-    return df
 
 
 def bucketize(feature, fc, n_bins):
@@ -142,7 +96,7 @@ def bucketize(feature, fc, n_bins):
 def train(examples, labels, hidden_units=None, features=None, bucket_sizes=None,
           crosses=None, classifier=False, lr=1e-4, steps=100,
           l1_strength=None, batch_size=1, model=None):
-    '''Create and train a DNN model.
+    '''Create and train a linear model.
 
     Args:
       examples: pandas.DataFrame with examples
@@ -156,17 +110,17 @@ def train(examples, labels, hidden_units=None, features=None, bucket_sizes=None,
       l1_strength: float, strength of L1 regularization
       steps: int, number of steps to train
       batch_size: int, number of examples per batch
-      model: tensorflow DNNRegressor or DNNClassifer,
+      model: tensorflow LinearRegressor or LinearClassifer,
         previously trained model
 
     Returns:
-      A trained tensorflow.estimator.DNNRegressor.
+      A trained tensorflow.estimator.LinearRegressor.
     '''
 
     # Create feature columns and dictionary mapping feature names to them.
     if not features:
         features = examples.columns
-    fcdict = {feature: tf.feature_column.numeric_column(feature)
+    fcdict = {str(feature): tf.feature_column.numeric_column(str(feature))
               for feature in features}
     fcs = fcdict.values()
 
@@ -176,7 +130,7 @@ def train(examples, labels, hidden_units=None, features=None, bucket_sizes=None,
             raise ValueError(
                 'The number of buckets must match the number of features.')
 
-        fcdict = {feature:
+        fcdict = {str(feature):
                   bucketize(examples[feature], fc, bucket_sizes[feature])
                   if bucket_sizes[feature] else fc
                   for feature, fc in fcdict.items()}
@@ -194,7 +148,7 @@ def train(examples, labels, hidden_units=None, features=None, bucket_sizes=None,
         fcs = fcdict.values()
 
     ds = Ds.from_tensor_slices(
-        ({feature: examples[feature] for feature in features},
+        ({str(feature): examples[feature] for feature in features},
          np.array(labels)))
 
     if l1_strength:
@@ -208,7 +162,10 @@ def train(examples, labels, hidden_units=None, features=None, bucket_sizes=None,
             5.0)
 
     if not model:
-        model = tf.estimator.DNNRegressor(hidden_units, fcs, optimizer=opt)
+        if classifier:
+            model = tf.estimator.LinearClassifier(fcs, optimizer=opt)
+        else:
+            model = tf.estimator.LinearRegressor(fcs, optimizer=opt)
 
     for _ in range(10):
         model.train(
@@ -229,15 +186,8 @@ def validate(model, examples, labels, features=None):
         features = examples.columns
 
     ds = Ds.from_tensor_slices(
-        ({feature: examples[feature] for feature in features}, labels))
+        ({str(feature): examples[feature] for feature in features}, labels))
     predictions = get_predictions(model, ds)
-    plt.figure()
-    plt.subplot(1, 2, 1)
-    plt.scatter(examples['longitude'], examples['latitude'], cmap='coolwarm',
-                c=labels.iloc[:, 0])
-    plt.subplot(1, 2, 2)
-    plt.scatter(examples['longitude'], examples['latitude'], cmap='coolwarm',
-                c=predictions)
     if "classifier" in str(type(model)).casefold():
         print("Validation log loss:", log_loss(labels, predictions))
     else:
@@ -251,7 +201,7 @@ def evaluate(model, examples, labels, features=None):
         features = examples.columns
 
     ds = Ds.from_tensor_slices(
-        ({feature: examples[feature] for feature in features}, labels))
+        ({str(feature): examples[feature] for feature in features}, labels))
 
     results = model.evaluate(
         lambda: ds.batch(1).make_one_shot_iterator().get_next())
@@ -273,18 +223,12 @@ def count_nonzero_weights(model):
 
 
 # Train.
-binned = {"longitude": 50,
-          "latitude": 50,
-          "housing_median_age": 10,
-          "households": 10,
-          "median_income": None,
-          "rooms_per_person": None}
 trained = train(training_examples,
                 training_labels,
+                classifier=True,
                 # model=trained,
-                hidden_units=[20, 10],
-                features=binned.keys(),
-                bucket_sizes=binned,
+                # hidden_units=[20, 10],
+                # features=chosen,
                 # crosses=[["latitude", "longitude"]],
                 # l1_strength=0.5,
                 lr=3e-2, steps=100, batch_size=10)
@@ -294,8 +238,7 @@ print("Number of nonzero weights:", count_nonzero_weights(trained))
 
 
 # Validate.
-y = validate(trained, validation_examples, validation_labels,
-             features=binned.keys())
+y = validate(trained, validation_examples, validation_labels)
 
 # Evaluate the model.
 res = evaluate(trained, validation_examples, validation_labels)
@@ -317,9 +260,8 @@ if will_test:
     test_labels = preprocess_labels(chdt)
 
     # Check the test.
-    ty = validate(trained, test_examples, test_labels, features=binned.keys())
-    tres = evaluate(trained, test_examples,
-                    test_labels, features=binned.keys())
+    ty = validate(trained, test_examples, test_labels)
+    tres = evaluate(trained, test_examples, test_labels)
     if "classifier" in str(type(trained)).casefold():
         tfpr, ttpr, thresholds = roc_curve(test_labels, ty)
         plt.figure()

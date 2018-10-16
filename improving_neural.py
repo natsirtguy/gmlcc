@@ -1,4 +1,4 @@
-'''Practice using binning, crossed features for training.'''
+'''Improve our neural net by manipulating featurs, using different optimizers.'''
 
 import os
 import itertools

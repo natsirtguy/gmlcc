@@ -271,8 +271,26 @@
   Breaking a problem up into smaller problems that tend to repeat and memoizing the results to avoid recomputing
 * Adagrad optimizer:
   Adaptive gradient descent, monotonically lowers the rate for each coefficient separately
+* Softmax:
+  Generalization of logistic regression assigning probabilities to different classes
+* In Softmax, outputs sum to:
+  One, so they can be interpreted as probabilities (also helps convergence)
+* Softmax is better than many individual one-vs-all classifiers:
+  Because we can share the internal state of the network between them
+* When to use Softmax layer:
+  A multi-class problem with a single label
+* Number of neurons in Softmax layer:
+  Same as number of classes/outputs
+* Softmax equation:
+  P(y = j|x) = exp(weight_j * x + b_j)/(sum_i exp(weight_i * x + b_i))
+* Two variants of Softmax:
+  Full Softmax and candidate sampling
+* Candidate sampling in Softmax:
+  When training, only compute the probabilities for positives labels and a random sample of negative labels
+* If there are many positive labels in a multi-class problem:
+  It doesn't make sense use Softmax
 * 
 
 #  LocalWords:  tf ds fn xs ys iid std argmax dataframe exp ROC AUC
 #  LocalWords:  AUROC TP FP BINBO logit logits ids int ReLU fcs ReLUs
-#  LocalWords:  DDNRegressor memoizing
+#  LocalWords:  DDNRegressor memoizing Adagrad Softmax
