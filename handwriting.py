@@ -47,17 +47,17 @@ validation_examples = preprocess(mnist).iloc[perm[7500:], :]
 validation_labels = preprocess_labels(mnist).iloc[perm[7500:], :]
 
 
-def show_digit(example):
+def show_digit(features, labels, index):
     '''Show a digit from an mnist example.'''
-    plt.matshow(np.array(example[1:]).reshape(28, 28))
-    plt.title(f"Label: {example[0]}")
+    feature = features.iloc[index]
+    label = labels.iloc[index][0]
+    plt.matshow(np.array(feature).reshape(28, 28))
+    plt.title(f"Label: {label}")
 
 
 # Show some choice of training, validation digits.
-show_digit(np.hstack((training_labels.iloc[37],
-                      training_examples.iloc[37])))
-show_digit(np.hstack((validation_labels.iloc[37],
-                      validation_examples.iloc[37])))
+show_digit(training_examples, training_labels, 37)
+show_digit(validation_examples, validation_labels, 37)
 
 
 def train_fn(ds, shuffle=True, batch_size=1, repeat=None):
@@ -154,7 +154,7 @@ def validate(model, examples, labels, features=None):
     predictions, classes = get_predictions(model, ds)
     print("Validation log loss:", log_loss(labels, predictions))
 
-    return predictions
+    return predictions, classes
 
 
 def evaluate(model, examples, labels, features=None):
@@ -200,7 +200,8 @@ print("Number of nonzero weights:", count_nonzero_weights(trained))
 
 
 # Validate.
-y = validate(trained, validation_examples, validation_labels)
+y, y_classes = validate(trained, validation_examples, validation_labels)
+
 
 # Evaluate the model.
 res = evaluate(trained, validation_examples, validation_labels)
