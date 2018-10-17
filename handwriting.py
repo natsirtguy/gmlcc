@@ -57,8 +57,8 @@ def show_digit(features, labels, index):
 
 
 # Show some choice of training, validation digits.
-show_digit(training_examples, training_labels, 37)
-show_digit(validation_examples, validation_labels, 37)
+show_digit(training_examples, training_labels, 38)
+show_digit(validation_examples, validation_labels, 38)
 
 
 def train_fn(ds, shuffle=True, batch_size=1, repeat=None):
@@ -96,24 +96,23 @@ def bucketize(feature, fc, n_bins):
 def train(examples, labels, hidden_units=None, features=None, lr=1e-4,
           steps=100, optimizer=tf.train.GradientDescentOptimizer,
           l1_strength=None, batch_size=1, model=None, dropout=None):
-    '''Create and train a linear model.
+    '''Create and train a linear or neural network model.
 
     Args:
       examples: pandas.DataFrame with examples
       labels: pandas.DataFrame with labels
       hidden_units: list of ints, number of neurons per layer
       features: list of selected features from examples
-      bucket_sizes: dict with size of buckets; if a value is None,
-        don't bucketize that feature
-      crosses: list of lists of features to be crossed
       lr: float, learning rate
-      l1_strength: float, strength of L1 regularization
       steps: int, number of steps to train
+      optimizer: tf.train.Optimizer, type of optimizer to use
+      l1_strength: float, strength of L1 regularization
       batch_size: int, number of examples per batch
       model: tensorflow LinearClassifier, previously trained model
+      dropout: float between 0 and 1, probability to dropout a given node
 
     Returns:
-      A trained tensorflow.estimator.LinearClassifier.
+      A trained tensorflow.estimator.LinearClassifier or DNNClassifier.
     '''
 
     # Create feature columns and dictionary mapping feature names to them.
@@ -198,33 +197,30 @@ def count_nonzero_weights(model):
                     'bias_weight', 'Ftrl']))
 
 
-# Train.
+# Train a linear classifier.
 trained_linear = train(training_examples,
                        training_labels,
                        optimizer=tf.train.AdagradOptimizer,
                        # model=trained,
                        # hidden_units=[20, 10],
-                       # features=chosen,
-                       # crosses=[["latitude", "longitude"]],
                        # l1_strength=0.5,
                        lr=1e-1, steps=100, batch_size=10)
-# Remove tf events
+# Remove tf events.
 list(map(os.remove,
          glob.glob(os.path.join(
              trained_linear.model_dir, "events.out.tfevents*"))))
 
 
+# Train a neural net classifier.
 trained_nn = train(training_examples,
                    training_labels,
                    optimizer=tf.train.AdamOptimizer,
-                   # model=trained,
-                   hidden_units=[784, 392, 196],
+                   # model=trained_nn,
+                   hidden_units=[100, 50],
                    dropout=.3,
-                   # features=chosen,
-                   # crosses=[["latitude", "longitude"]],
                    # l1_strength=0.5,
-                   lr=3e-4, steps=200, batch_size=50)
-# Remove tf events
+                   lr=3e-4, steps=400, batch_size=50)
+# Remove tf events.
 list(map(os.remove,
          glob.glob(os.path.join(
              trained_nn.model_dir, "events.out.tfevents*"))))
@@ -237,6 +233,14 @@ print("Number of nonzero weights:", count_nonzero_weights(trained_nn))
 # Validate.
 y, y_class_ids = validate(trained_nn, validation_examples,
                           validation_labels)
+
+# Show target, predicted for some of the validation examples.
+n = 50
+plt.figure()
+plt.plot(range(n),
+         [int(cid) for cid in y_class_ids[-n:]], '.', label="Predicted")
+plt.plot(range(n), validation_labels[-n:], label="Actual")
+plt.legend()
 
 
 # Evaluate the model.
@@ -252,7 +256,7 @@ plt.ylabel("Actual")
 plt.title("Confusion matrix")
 
 # Show only off-diagonal.
-cmc[range(10), range(10)] = 0
+np.fill_diagonal(cmc, 0)
 plt.matshow(cmc)
 plt.xlabel("Predicted")
 plt.ylabel("Actual")
@@ -267,6 +271,17 @@ for i in range(len(y[0])):
     plt.title(f"ROC curve for class {i}")
     plt.xlabel("FPR")
     plt.ylabel("TPR")
+
+
+# Get the weights.
+nn_weights = [trained_nn.get_variable_value(f"dnn/hiddenlayer_{i}/kernel")
+              for i in range(2)]
+nodes = nn_weights[0].shape[1]
+
+# Visualize weights in the first layer.
+n = 40
+for i in range(n, n+10):
+    plt.matshow(nn_weights[0].T[i].reshape(28, 28))
 
 
 will_test = False
