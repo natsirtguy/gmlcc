@@ -219,11 +219,11 @@ trained_nn = train(training_examples,
                    optimizer=tf.train.AdamOptimizer,
                    # model=trained,
                    hidden_units=[784, 392, 196],
-                   dropout=.1,
+                   dropout=.3,
                    # features=chosen,
                    # crosses=[["latitude", "longitude"]],
                    # l1_strength=0.5,
-                   lr=3e-2, steps=200, batch_size=50)
+                   lr=3e-4, steps=200, batch_size=50)
 # Remove tf events
 list(map(os.remove,
          glob.glob(os.path.join(
@@ -279,9 +279,5 @@ if will_test:
     test_labels = preprocess_labels(mnistt)
 
     # Check the test.
-    ty = validate(trained_nn, test_examples, test_labels)
+    ty, ty_class_ids = validate(trained_nn, test_examples, test_labels)
     tres = evaluate(trained_nn, test_examples, test_labels)
-    # if "classifier" in str(type(trained)).casefold():
-    #     tfpr, ttpr, thresholds = roc_curve(test_labels, ty)
-    #     plt.figure()
-    #     plt.plot(tfpr, ttpr, [0, 1], [0, 1])
