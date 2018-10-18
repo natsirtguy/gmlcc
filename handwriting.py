@@ -73,7 +73,7 @@ def get_predictions(model, ds):
         lambda: ds.batch(1).make_one_shot_iterator().get_next())
     preds = list(preds)
     probabilities = np.vstack(pred["probabilities"] for pred in preds)
-    class_ids = np.vstack(pred["class_ids"] for pred in preds)
+    class_ids = np.hstack(pred["class_ids"] for pred in preds)
     return probabilities, class_ids
 
 
@@ -219,7 +219,7 @@ trained_nn = train(training_examples,
                    hidden_units=[100, 50],
                    dropout=.3,
                    # l1_strength=0.5,
-                   lr=3e-4, steps=400, batch_size=50)
+                   lr=3e-4, steps=4000, batch_size=50)
 # Remove tf events.
 list(map(os.remove,
          glob.glob(os.path.join(
@@ -234,12 +234,25 @@ print("Number of nonzero weights:", count_nonzero_weights(trained_nn))
 y, y_class_ids = validate(trained_nn, validation_examples,
                           validation_labels)
 
+# Find examples of incorrect predictions and display.
+missed_mask = np.logical_not(np.equal(y_class_ids,
+                                      np.array(validation_labels).T[0]))
+
+missed_examples = validation_examples.iloc[missed_mask]
+missed_labels = validation_labels.iloc[missed_mask]
+missed_predictions = y_class_ids[missed_mask]
+for i in range(40, 60):
+    print(f"Actual, prediction:"
+          f" ({int(missed_labels.iloc[i])}, {missed_predictions[i]})")
+    show_digit(missed_examples, missed_labels, i)
+
+
 # Show target, predicted for some of the validation examples.
 n = 50
 plt.figure()
 plt.plot(range(n),
-         [int(cid) for cid in y_class_ids[-n:]], '.', label="Predicted")
-plt.plot(range(n), validation_labels[-n:], label="Actual")
+         [int(cid) for cid in y_class_ids[:n]], '.', label="Predicted")
+plt.plot(range(n), validation_labels[:n], label="Actual")
 plt.legend()
 
 
@@ -284,7 +297,7 @@ for i in range(n, n+10):
     plt.matshow(nn_weights[0].T[i].reshape(28, 28))
 
 
-will_test = False
+will_test = True
 if will_test:
     # Get the test data.
     mnistt = pd.read_csv(

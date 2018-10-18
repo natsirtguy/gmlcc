@@ -295,8 +295,40 @@
   tf.keras.util.to_categorical(array, n_classes)
 * Confusion matrix function:
   sklearn.metrics.confusion_matrix(targets, predictions)
+* Embedding (concept):
+  Representing features in some space so that similar features are nearby --- think of similar movies
+* Creating dense representation of sparse features:
+  First build dictionary to sparse features, then represent sparse vector as list containing keys to sparse features
+* Coordinate of the feature in the embedding space is represented by:
+  The weight from the feature to each node in the embedding layer
+* The weight from feature to node in embedding layer:
+  Corresponds to position in embedding space
+* Rule-of-thumb for number of embedding dimensions/units:
+  Fourth root of number of possible values
+* Embedding a useful tool by itself:
+  Because it operationally groups features, showing relationships in data
+* Collaborative filtering:
+  Predicting user preferences based on other users
+* Latent dimension:
+  Feature inferred from data
+* Problem with sparse input vectors:
+  Large number of weights -> memory, computation limited
+* When an embedding is useful:
+  Highly dimensional space of features (like languages with lists of words) that could have structure to them (like meanings of words)
+* Representing embedding as a matrix:
+  With N vocabulary items, M embedding dimensions, write embedding as NxM matrix, so that left multiplying by one-hot vector gives dense vector
+* PCA:
+  Principle component analysis
+* Picture of PCA:
+  Fitting an ellipsoid to data, axes of ellipsoid are principal components
+* Definition of PCA:
+  Change of coordinates (orthogonal, linear) so that data varies most along first coordinate, next most along second, etc.
+* Input for PCA:
+  Data matrix X, columns are features adjusted to have zero emperical mean, rows are experiments
+* PCA in terms of eigenvectors:
+  Equivalent to eigenvector decompostion of (transposed data matrix)*(data matrix)
 * 
 
 #  LocalWords:  tf ds fn xs ys iid std argmax dataframe exp ROC AUC
 #  LocalWords:  AUROC TP FP BINBO logit logits ids int ReLU fcs ReLUs
-#  LocalWords:  DDNRegressor memoizing Adagrad Softmax len
+#  LocalWords:  DDNRegressor memoizing Adagrad Softmax len NxM PCA
