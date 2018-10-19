@@ -305,7 +305,7 @@
   Corresponds to position in embedding space
 * Rule-of-thumb for number of embedding dimensions/units:
   Fourth root of number of possible values
-* Embedding a useful tool by itself:
+* Embedding is a useful tool by itself:
   Because it operationally groups features, showing relationships in data
 * Collaborative filtering:
   Predicting user preferences based on other users
@@ -318,17 +318,54 @@
 * Representing embedding as a matrix:
   With N vocabulary items, M embedding dimensions, write embedding as NxM matrix, so that left multiplying by one-hot vector gives dense vector
 * PCA:
-  Principle component analysis
+  Principal component analysis
 * Picture of PCA:
   Fitting an ellipsoid to data, axes of ellipsoid are principal components
 * Definition of PCA:
   Change of coordinates (orthogonal, linear) so that data varies most along first coordinate, next most along second, etc.
-* Input for PCA:
-  Data matrix X, columns are features adjusted to have zero emperical mean, rows are experiments
+* Data matrix (input) for PCA:
+  Columns are features adjusted to have zero empirical mean, rows are experiments
+* Covariance matrix in terms of data matrix X:
+  Proportional to X^T X, since <xy - <x><y>> = <xy> is covariance of features with mean zero
 * PCA in terms of eigenvectors:
-  Equivalent to eigenvector decompostion of (transposed data matrix)*(data matrix)
+  Equivalent to eigenvector decomposition of covariance matrix
+* Sample covariance between principal components:
+  Zero, basically since eigenvectors are orthogonal or orthogonalizable
+* Using PCA to reduce dimensionality:
+  Use only a subset of principal components (eigenvectors) with largest variance
+* Rayleigh quotient:
+  Same as expectation value in QM of Hermitian matrix with given state vector
+* Equation to reduce dimensions with PCA on data matrix X:
+  T = X * W_R,  where columns of W_R are first n eigenvectors of X^T X 
+* Do a PCA in python:
+  pca = sklearn.decomposition.PCA(n_components=n)(training_matrix)
+* Once you have a PCA instance in python, transform data:
+  pca_ed = pca.transform(new_data)
+* SVD:
+  Singular value decomposition, analogous to eigendecomposition for rectangular matrices
+* In SVD, (m, n) matrix M is factored:
+  M = U S V^*, S is (m, n) diagonal, U (m, m) unitary, V (n, n) unitary
+* Unitary matrices in SVD of matrix M:
+  Consist of eigenvectors of M^* M and M M^* (note that they are Hermitian)
+* Singular values of matrix M:
+  Non-negative square roots of eigenvalues of either M^* M or M M^*
+* Feature hashing:
+  Hashing terms instead of creating an explicit vocabulary, creates indices
+* Get dataset from a TFRecord file:
+  ds = tf.data.TFRecordDataset(path)
+* Parsing function for single TFRecordDataset record:
+  Create dictionary with feature/label names as keys, tf feature types
+  as values, then call tf.parse_single_example(record, dict), then
+  return tuple with dictionary of feature names and values, labels
+* Parse TFRecordDataset ds:
+  Apply parsing function with ds.map(parse_fn)
+* Make a categorical feature column with a vocabulary list:
+  tf.feature_column.categorical_column_with_vocabulary_list(key, vocabulary_list)
 * 
 
 #  LocalWords:  tf ds fn xs ys iid std argmax dataframe exp ROC AUC
 #  LocalWords:  AUROC TP FP BINBO logit logits ids int ReLU fcs ReLUs
-#  LocalWords:  DDNRegressor memoizing Adagrad Softmax len NxM PCA
+#  LocalWords:  DDNRegressor memoizing Adagrad Softmax len NxM PCA xy
+#  LocalWords:  orthogonalizable QM MSE SGD cols col lr sess overfit
+#  LocalWords:  bucketized fpr tpr NP wrt pca SVD TFRecordDataset
+#  LocalWords:  TFRecord dict
