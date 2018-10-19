@@ -40,11 +40,6 @@ def _parse_fn(record):
     return {'terms': terms}, parsed['labels']
 
 
-# Get dataset and apply the parsing function.
-train_ds = tf.data.TFRecordDataset(train_path)
-train_ds = train_ds.map(_parse_fn)
-
-
 def train_fn(ds, shuffle=10000, batch_size=1, repeat=None):
     '''Feed data for train.'''
     if shuffle:
@@ -82,9 +77,25 @@ def bucketize(feature, fc, n_bins):
     return tf.feature_column.bucketized_column(fc, qs)
 
 
+informative_terms = ("bad", "great", "best", "worst", "fun",
+                     "beautiful", "excellent", "poor", "boring",
+                     "awful", "terrible", "definitely", "perfect",
+                     "liked", "worse", "waste", "entertaining",
+                     "loved", "unfortunately", "amazing",
+                     "enjoyed", "favorite", "horrible",
+                     "brilliant", "highly", "simple", "annoying",
+                     "today", "hilarious", "enjoyable", "dull",
+                     "fantastic", "poorly", "fails",
+                     "disappointing", "disappointment", "not",
+                     "him", "her", "good", "time", "?", ".", "!",
+                     "movie", "film", "action", "comedy", "drama",
+                     "family")
+
+
 def train(ds, hidden_units=None, features=None, lr=1e-4,
           steps=100, optimizer=tf.train.GradientDescentOptimizer,
-          l1_strength=None, batch_size=1, model=None, dropout=None):
+          l1_strength=None, batch_size=1, model=None, dropout=None,
+          embedding=None, show_loss=False):
     '''Create and train a linear or neural network model.
 
     Args:
@@ -98,6 +109,8 @@ def train(ds, hidden_units=None, features=None, lr=1e-4,
       batch_size: int, number of examples per batch
       model: tensorflow LinearClassifier, previously trained model
       dropout: float between 0 and 1, probability to dropout a given node
+      embedding: int, number of dimensions for embedding_column
+      show_loss: bool, if True show loss over 10 periods
 
     Returns:
       A trained tensorflow.estimator.LinearClassifier or DNNClassifier.
@@ -105,23 +118,16 @@ def train(ds, hidden_units=None, features=None, lr=1e-4,
 
     # Create feature columns and dictionary mapping feature names to them.
     # Construct informative terms categorical column.
-    informative_terms = ("bad", "great", "best", "worst", "fun",
-                         "beautiful", "excellent", "poor", "boring",
-                         "awful", "terrible", "definitely", "perfect",
-                         "liked", "worse", "waste", "entertaining",
-                         "loved", "unfortunately", "amazing",
-                         "enjoyed", "favorite", "horrible",
-                         "brilliant", "highly", "simple", "annoying",
-                         "today", "hilarious", "enjoyable", "dull",
-                         "fantastic", "poorly", "fails",
-                         "disappointing", "disappointment", "not",
-                         "him", "her", "good", "time", "?", ".", "!",
-                         "movie", "film", "action", "comedy", "drama",
-                         "family")
     terms_fc = tf.feature_column.categorical_column_with_vocabulary_list(
         "terms", informative_terms)
 
-    fcs = set([terms_fc])
+    if hidden_units:
+        if embedding:
+            fcs = [tf.feature_column.embedding_column(terms_fc, embedding)]
+        else:
+            fcs = [tf.feature_column.indicator_column(terms_fc)]
+    else:
+        fcs = [terms_fc]
 
     if l1_strength:
         opt = optimizer(
@@ -133,7 +139,8 @@ def train(ds, hidden_units=None, features=None, lr=1e-4,
     if not model:
         m_kwargs = {'feature_columns': fcs,
                     'optimizer': opt,
-                    'config': tf.estimator.RunConfig(keep_checkpoint_max=1)}
+                    # 'config': tf.estimator.RunConfig(keep_checkpoint_max=1)
+                    }
         if hidden_units:
             m_type = tf.estimator.DNNClassifier
             m_kwargs['hidden_units'] = hidden_units
@@ -143,23 +150,29 @@ def train(ds, hidden_units=None, features=None, lr=1e-4,
 
         model = m_type(**m_kwargs)
 
-    for _ in range(10):
-        try:
-            model.train(
-                train_fn(ds, shuffle=10000, batch_size=batch_size),
-                steps=steps//10)
-            print("Loss:",
-                  model.evaluate(train_fn(ds, shuffle=False), steps=1000)["loss"])
-        except KeyboardInterrupt:
-            print("\nTraining stopped by user.")
-            break
+    if show_loss:
+        for _ in range(10):
+            try:
+                model.train(
+                    train_fn(ds, shuffle=10000, batch_size=batch_size),
+                    steps=steps//10)
+                print("Loss:",
+                      model.evaluate(train_fn(ds, shuffle=False),
+                                     steps=1000)["loss"])
+            except KeyboardInterrupt:
+                print("\nTraining stopped by user.")
+                break
+    else:
+        model.train(
+            train_fn(ds, shuffle=1000, batch_size=batch_size),
+            steps=steps)
 
     return model
 
 
-def evaluate(model, ds, features=None):
+def evaluate(model, ds, steps=1000, features=None):
     '''Check the mse on the validation set. '''
-    results = model.evaluate(train_fn(ds, shuffle=False), steps=1000)
+    results = model.evaluate(train_fn(ds, shuffle=False), steps=steps)
 
     for stat_name, stat_value in results.items():
         print(f"{stat_name:>20} | {stat_value}")
@@ -181,30 +194,48 @@ def count_nonzero_weights(model):
 trained_linear = train(train_ds,
                        optimizer=tf.train.AdagradOptimizer,
                        # model=trained,
-                       # hidden_units=[20, 10],
+                       # hidden_units=[20, 20],
                        # l1_strength=0.5,
                        lr=1e-1, steps=1000, batch_size=25)
 # Remove tf events.
 list(map(os.remove,
          glob.glob(os.path.join(
              trained_linear.model_dir, "events.out.tfevents*"))))
-
-
-# # Train a neural net classifier.
-# trained_nn = train(train_ds,
-#                    optimizer=tf.train.AdamOptimizer,
-#                    # model=trained_nn,
-#                    hidden_units=[100, 50],
-#                    dropout=.3,
-#                    # l1_strength=0.5,
-#                    lr=3e-4, steps=4000, batch_size=50)
-# # Remove tf events.
-# list(map(os.remove,
-#          glob.glob(os.path.join(
-#              trained_nn.model_dir, "events.out.tfevents*"))))
-
 print("Evaluated on training set:")
 res = evaluate(trained_linear, train_ds)
+
+
+# Train a neural net classifier.
+trained_nn = None
+for steps in (10, 90, 900):
+    trained_nn = train(train_ds,
+                       optimizer=tf.train.AdamOptimizer,
+                       model=trained_nn,
+                       hidden_units=[20, 20],
+                       # dropout=.3,
+                       # l1_strength=0.5,
+                       show_loss=False,
+                       embedding=2,
+                       lr=1e-1, steps=steps, batch_size=25)
+    # Remove tf events.
+    list(map(os.remove,
+             glob.glob(os.path.join(
+                 trained_nn.model_dir, "events.out.tfevents*"))))
+    print("Evaluated on training set:")
+    res = evaluate(trained_nn, train_ds)
+
+    # Investigate embedding layer.
+    embed_dims = trained_nn.get_variable_value(
+        'dnn/input_from_feature_columns/input_layer/'
+        'terms_embedding/embedding_weights')
+    plt.figure()
+    plt.title(f"Embedding after {res['global_step']} steps")
+    x_lims = np.array([embed_dims.T[0].min(), embed_dims.T[0].max()])
+    y_lims = np.array([embed_dims.T[1].min(), embed_dims.T[1].max()])
+    plt.xlim(1.5*x_lims)
+    plt.ylim(1.5*y_lims)
+    for x, y, term in zip(*embed_dims.T, informative_terms):
+        plt.text(x, y, term, fontsize=8)
 
 
 will_test = False

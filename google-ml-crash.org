@@ -361,6 +361,8 @@
   Apply parsing function with ds.map(parse_fn)
 * Make a categorical feature column with a vocabulary list:
   tf.feature_column.categorical_column_with_vocabulary_list(key, vocabulary_list)
+* Make sparse feature column work for input in DNNClassifier:
+  Wrap in either indicator_column or embedding_column
 * 
 
 #  LocalWords:  tf ds fn xs ys iid std argmax dataframe exp ROC AUC
