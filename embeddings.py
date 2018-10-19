@@ -40,6 +40,11 @@ def _parse_fn(record):
     return {'terms': terms}, parsed['labels']
 
 
+# Get dataset and apply the parsing function.
+train_ds = tf.data.TFRecordDataset(train_path)
+train_ds = train_ds.map(_parse_fn)
+
+
 def train_fn(ds, shuffle=10000, batch_size=1, repeat=None):
     '''Feed data for train.'''
     if shuffle:
