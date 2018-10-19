@@ -61,9 +61,12 @@ show_digit(training_examples, training_labels, 38)
 show_digit(validation_examples, validation_labels, 38)
 
 
-def train_fn(ds, shuffle=True, batch_size=1, repeat=None):
+def train_fn(ds, shuffle=10000, batch_size=1, repeat=None):
     '''Feed data for train.'''
-    return lambda: (ds.shuffle(shuffle).batch(batch_size).repeat(repeat)
+    if shuffle:
+        return lambda: (ds.shuffle(shuffle).batch(batch_size).repeat(repeat)
+                        .make_one_shot_iterator().get_next())
+    return lambda: (ds.batch(batch_size).repeat(repeat)
                     .make_one_shot_iterator().get_next())
 
 
@@ -145,7 +148,7 @@ def train(examples, labels, hidden_units=None, features=None, lr=1e-4,
     for _ in range(10):
         try:
             model.train(
-                train_fn(ds, batch_size=batch_size),
+                train_fn(ds, shuffle=10000, batch_size=batch_size),
                 steps=steps//10)
             predictions, class_ids = get_predictions(model, ds)
             print("Log loss:", log_loss(labels, predictions))
