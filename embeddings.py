@@ -25,9 +25,6 @@ pd.options.display.float_format = '{:.2f}'.format
 train_url = ('https://download.mlcc.google.com/'
              'mledu-datasets/sparse-data-embedding/train.tfrecord')
 train_path = tf.keras.utils.get_file('train.tfrecord', train_url)
-test_url = ('https://download.mlcc.google.com/'
-            'mledu-datasets/sparse-data-embedding/test.tfrecord')
-test_path = tf.keras.utils.get_file('test.tfrecord', test_url)
 
 
 def _parse_fn(record):
@@ -38,7 +35,6 @@ def _parse_fn(record):
     }
 
     parsed = tf.parse_single_example(record, features)
-    #terms = tf.sparse_tensor_to_dense(parsed['terms'], default_value='')
     terms = parsed['terms'].values
 
     return {'terms': terms}, parsed['labels']
@@ -47,9 +43,6 @@ def _parse_fn(record):
 # Get dataset and apply the parsing function.
 train_ds = tf.data.TFRecordDataset(train_path)
 train_ds = train_ds.map(_parse_fn)
-
-with tf.Session() as sess:
-    print(sess.run(train_ds.make_one_shot_iterator().get_next()))
 
 
 def train_fn(ds, shuffle=10000, batch_size=1, repeat=None):
@@ -156,7 +149,7 @@ def train(ds, hidden_units=None, features=None, lr=1e-4,
                 train_fn(ds, shuffle=10000, batch_size=batch_size),
                 steps=steps//10)
             print("Loss:",
-                  model.evaluate(train_fn(ds, shuffle=False), steps=1)["loss"])
+                  model.evaluate(train_fn(ds, shuffle=False), steps=1000)["loss"])
         except KeyboardInterrupt:
             print("\nTraining stopped by user.")
             break
@@ -166,7 +159,7 @@ def train(ds, hidden_units=None, features=None, lr=1e-4,
 
 def evaluate(model, ds, features=None):
     '''Check the mse on the validation set. '''
-    results = model.evaluate(train_fn(ds, shuffle=False), steps=1)
+    results = model.evaluate(train_fn(ds, shuffle=False), steps=1000)
 
     for stat_name, stat_value in results.items():
         print(f"{stat_name:>20} | {stat_value}")
@@ -190,7 +183,7 @@ trained_linear = train(train_ds,
                        # model=trained,
                        # hidden_units=[20, 10],
                        # l1_strength=0.5,
-                       lr=1e-2, steps=1000, batch_size=25)
+                       lr=1e-1, steps=1000, batch_size=25)
 # Remove tf events.
 list(map(os.remove,
          glob.glob(os.path.join(
@@ -216,13 +209,12 @@ res = evaluate(trained_linear, train_ds)
 
 will_test = False
 if will_test:
-    # Get the test data.
-    mnistt = pd.read_csv(
-        "https://download.mlcc.google.com/mledu-datasets/mnist_test.csv",
-        sep=",", header=None)
-    test_examples = preprocess(mnistt)
-    test_labels = preprocess_labels(mnistt)
+    # Get and parse the test data.
+    test_url = ('https://download.mlcc.google.com/'
+                'mledu-datasets/sparse-data-embedding/test.tfrecord')
+    test_path = tf.keras.utils.get_file('test.tfrecord', test_url)
+    test_ds = tf.data.TFRecordDataset(test_path)
+    test_ds = test_ds.map(_parse_fn)
 
-    # Check the test.
-    ty, ty_class_ids = validate(trained_nn, test_examples, test_labels)
-    tres = evaluate(trained_nn, test_examples, test_labels)
+    print("Evaluated on test set:")
+    tres = evaluate(trained_linear, test_ds)
