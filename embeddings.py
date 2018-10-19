@@ -1,4 +1,4 @@
-'''Use machine learning to classify handwritten digits.'''
+'''Use machine learning for movie reviews.'''
 
 import os
 import glob
@@ -28,7 +28,6 @@ train_path = tf.keras.utils.get_file('train.tfrecord', train_url)
 test_url = ('https://download.mlcc.google.com/'
             'mledu-datasets/sparse-data-embedding/test.tfrecord')
 test_path = tf.keras.utils.get_file('test.tfrecord', test_url)
-train_ds = tf.data.TFRecordDataset(train_path)
 
 
 def _parse_fn(record):
@@ -39,21 +38,29 @@ def _parse_fn(record):
     }
 
     parsed = tf.parse_single_example(record, features)
+    #terms = tf.sparse_tensor_to_dense(parsed['terms'], default_value='')
+    terms = parsed['terms'].values
 
-    return {'terms': parsed['terms']}, parsed['labels']
+    return {'terms': terms}, parsed['labels']
 
 
-# Apply the parsing function.
+# Get dataset and apply the parsing function.
+train_ds = tf.data.TFRecordDataset(train_path)
 train_ds = train_ds.map(_parse_fn)
+
+with tf.Session() as sess:
+    print(sess.run(train_ds.make_one_shot_iterator().get_next()))
 
 
 def train_fn(ds, shuffle=10000, batch_size=1, repeat=None):
     '''Feed data for train.'''
     if shuffle:
-        return lambda: (ds.shuffle(shuffle).batch(batch_size)
+        return lambda: (ds.shuffle(shuffle)
+                        .padded_batch(batch_size, ds.output_shapes)
                         .repeat(repeat)
                         .make_one_shot_iterator().get_next())
-    return lambda: (ds.batch(batch_size).repeat(repeat)
+    return lambda: (ds.padded_batch(batch_size, ds.output_shapes)
+                    .repeat(repeat)
                     .make_one_shot_iterator().get_next())
 
 
@@ -84,7 +91,7 @@ def bucketize(feature, fc, n_bins):
 
 def train(ds, hidden_units=None, features=None, lr=1e-4,
           steps=100, optimizer=tf.train.GradientDescentOptimizer,
-          l1_strength=None, model=None, dropout=None):
+          l1_strength=None, batch_size=1, model=None, dropout=None):
     '''Create and train a linear or neural network model.
 
     Args:
@@ -95,6 +102,7 @@ def train(ds, hidden_units=None, features=None, lr=1e-4,
       steps: int, number of steps to train
       optimizer: tf.train.Optimizer, type of optimizer to use
       l1_strength: float, strength of L1 regularization
+      batch_size: int, number of examples per batch
       model: tensorflow LinearClassifier, previously trained model
       dropout: float between 0 and 1, probability to dropout a given node
 
@@ -145,9 +153,10 @@ def train(ds, hidden_units=None, features=None, lr=1e-4,
     for _ in range(10):
         try:
             model.train(
-                train_fn(ds, shuffle=10000),
+                train_fn(ds, shuffle=10000, batch_size=batch_size),
                 steps=steps//10)
-            evaluate(model, ds)
+            print("Loss:",
+                  model.evaluate(train_fn(ds, shuffle=False), steps=1)["loss"])
         except KeyboardInterrupt:
             print("\nTraining stopped by user.")
             break
@@ -157,7 +166,7 @@ def train(ds, hidden_units=None, features=None, lr=1e-4,
 
 def evaluate(model, ds, features=None):
     '''Check the mse on the validation set. '''
-    results = model.evaluate(train_fn(ds, shuffle=False))
+    results = model.evaluate(train_fn(ds, shuffle=False), steps=1)
 
     for stat_name, stat_value in results.items():
         print(f"{stat_name:>20} | {stat_value}")
@@ -181,7 +190,7 @@ trained_linear = train(train_ds,
                        # model=trained,
                        # hidden_units=[20, 10],
                        # l1_strength=0.5,
-                       lr=1e-1, steps=100)
+                       lr=1e-2, steps=1000, batch_size=25)
 # Remove tf events.
 list(map(os.remove,
          glob.glob(os.path.join(
@@ -201,13 +210,8 @@ list(map(os.remove,
 #          glob.glob(os.path.join(
 #              trained_nn.model_dir, "events.out.tfevents*"))))
 
-
-# Find number of nonzero weights.
-# print("Number of nonzero weights:", count_nonzero_weights(trained_nn))
-
-
-# Get predictions.
-y, y_class_ids = get_predictions(trained_linear, train_ds)
+print("Evaluated on training set:")
+res = evaluate(trained_linear, train_ds)
 
 
 will_test = False
