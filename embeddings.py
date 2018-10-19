@@ -82,6 +82,16 @@ def bucketize(feature, fc, n_bins):
     return tf.feature_column.bucketized_column(fc, qs)
 
 
+# Get vocabulary list.
+vocab_path = tf.keras.utils.get_file(
+    'terms.txt',
+    "https://download.mlcc.google.com/mledu-datasets/"
+    "sparse-data-embedding/terms.txt")
+
+# Get terms from vocab file.
+with open(vocab_path, 'r') as vocab:
+    all_terms = np.hstack([term.strip()] for term in vocab)
+
 informative_terms = ("bad", "great", "best", "worst", "fun",
                      "beautiful", "excellent", "poor", "boring",
                      "awful", "terrible", "definitely", "perfect",
@@ -121,10 +131,11 @@ def train(ds, hidden_units=None, features=None, lr=1e-4,
       A trained tensorflow.estimator.LinearClassifier or DNNClassifier.
     '''
 
-    # Create feature columns and dictionary mapping feature names to them.
     # Construct informative terms categorical column.
-    terms_fc = tf.feature_column.categorical_column_with_vocabulary_list(
-        "terms", informative_terms)
+    # terms_fc = tf.feature_column.categorical_column_with_vocabulary_list(
+    #     "terms", informative_terms)
+    terms_fc = tf.feature_column.categorical_column_with_vocabulary_file(
+        "terms", vocab_path)
 
     if hidden_units:
         if embedding:
@@ -210,8 +221,9 @@ print("Evaluated on training set:")
 res = evaluate(trained_linear, train_ds)
 
 
-# Train a neural net classifier.
+# Train a neural net classifier, create word clouds.
 trained_nn = None
+term_choice = None
 for steps in (10, 90, 900):
     trained_nn = train(train_ds,
                        optimizer=tf.train.AdamOptimizer,
@@ -230,17 +242,30 @@ for steps in (10, 90, 900):
     res = evaluate(trained_nn, train_ds)
 
     # Investigate embedding layer.
-    embed_dims = trained_nn.get_variable_value(
-        'dnn/input_from_feature_columns/input_layer/'
-        'terms_embedding/embedding_weights')
-    plt.figure()
-    plt.title(f"Embedding after {res['global_step']} steps")
-    x_lims = np.array([embed_dims.T[0].min(), embed_dims.T[0].max()])
-    y_lims = np.array([embed_dims.T[1].min(), embed_dims.T[1].max()])
-    plt.xlim(1.5*x_lims)
-    plt.ylim(1.5*y_lims)
-    for x, y, term in zip(*embed_dims.T, informative_terms):
-        plt.text(x, y, term, fontsize=8)
+    word_cloud = True
+    if word_cloud:
+        if term_choice is None:
+            # Pick 100 random terms on the first loop.
+            term_choice = np.random.permutation(len(all_terms))[:100]
+            random_terms = all_terms[term_choice]
+
+        # Extract the weights for these terms.
+        embed_weights = trained_nn.get_variable_value(
+            'dnn/input_from_feature_columns/input_layer/'
+            'terms_embedding/embedding_weights')
+        random_weights = embed_weights[term_choice, :]
+
+        # Plot the terms.
+        plt.figure()
+        plt.title(f"Embedding after {res['global_step']} steps")
+        x_lims = np.array([random_weights.T[0].min(),
+                           random_weights.T[0].max()])
+        y_lims = np.array([random_weights.T[1].min(),
+                           random_weights.T[1].max()])
+        plt.xlim(1.5*x_lims)
+        plt.ylim(1.5*y_lims)
+        for x, y, term in zip(*random_weights.T, informative_terms):
+            plt.text(x, y, term, fontsize=8)
 
 
 will_test = False
@@ -253,4 +278,4 @@ if will_test:
     test_ds = test_ds.map(_parse_fn)
 
     print("Evaluated on test set:")
-    tres = evaluate(trained_linear, test_ds)
+    tres = evaluate(trained_nn, test_ds)
