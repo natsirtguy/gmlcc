@@ -114,7 +114,8 @@ def bucketize(feature: pd.DataFrame, fc:
     return tf.feature_column.bucketized_column(fc, qs)
 
 
-def make_dataset(features: pd.DataFrame, labels: pd.DataFrame):
+def make_dataset(features: pd.DataFrame,
+                 labels: pd.DataFrame=None):
     '''Create the tf dataset.'''
     fdict = {feature: features[feature] for feature in features}
 
@@ -259,42 +260,14 @@ def evaluate(model: tf.estimator.Estimator,
 
 
 def get_predictions(model: tf.estimator.Estimator,
-                    features: pd.DataFrame,
-                    labels: pd.DataFrame):
+                    features: pd.DataFrame):
     '''Retrieve predictions from model.'''
-    ds = make_dataset(features, labels)
+    ds = make_dataset(features)
     preds = model.predict(train_fn(ds, shuffle=False, repeat=1))
     preds = list(preds)
     probabilities = np.vstack(pred["probabilities"] for pred in preds)
     class_ids = np.hstack(pred["class_ids"] for pred in preds)
     return probabilities, class_ids
-
-
-# Train a neural net classifier.
-tfs = ['marital_status', 'age', 'hours_per_week', 'education',
-       'occupation', 'gender', 'capital_gain', 'capital_loss', 'race',
-       'workclass', 'relationship']
-trained_nn = train_model(train_features[tfs], train_labels,
-                         optimizer=tf.train.AdamOptimizer,
-                         hidden_units=[1024, 512],
-                         dropout=.3,
-                         # buckets=buckets,
-                         # l1_strength=0.5,
-                         show_loss=True,
-                         # embedding=2,
-                         learning_rate=3e-3, steps=1000, batch_size=50)
-# Remove tf events.
-list(map(os.remove,
-         glob.glob(os.path.join(
-             trained_nn.model_dir, "events.out.tfevents*"))))
-
-# Validate.
-print("Evaluated on validation set:")
-res = evaluate(trained_nn, validate_features[tfs], validate_labels)
-
-# Get probabilities on training data.
-probabilities, class_ids = get_predictions(
-    trained_nn, train_features, train_labels)
 
 
 def plot_confusion(cm: np.array):
@@ -328,6 +301,32 @@ def group_confusions(labels: pd.DataFrame,
             plt.title(f'Confusion matrix for {category}: {group}')
 
 
+# Train a neural net classifier.
+tfs = ['marital_status', 'age', 'hours_per_week', 'education',
+       'occupation', 'gender', 'capital_gain', 'capital_loss', 'race',
+       'workclass', 'relationship']
+trained_nn = train_model(train_features[tfs], train_labels,
+                         optimizer=tf.train.AdamOptimizer,
+                         hidden_units=[1024, 512],
+                         dropout=.3,
+                         # buckets=buckets,
+                         # l1_strength=0.5,
+                         show_loss=True,
+                         # embedding=2,
+                         learning_rate=3e-3, steps=1000, batch_size=50)
+# Remove tf events.
+list(map(os.remove,
+         glob.glob(os.path.join(
+             trained_nn.model_dir, "events.out.tfevents*"))))
+
+# Validate.
+print("Evaluated on validation set:")
+res = evaluate(trained_nn, validate_features[tfs], validate_labels)
+
+# Get probabilities on training data.
+probabilities, class_ids = get_predictions(trained_nn, train_features)
+
+# Show confusion matrices for various subgroups.
 group_confusions(train_labels, train_features, class_ids)
 
 will_test = False
@@ -342,4 +341,8 @@ if will_test:
     test_features, test_labels = preprocess(test_examples)
 
     print("Evaluated on test set:")
-    tres = evaluate(trained_nn, test_features, test_labels)
+    test_res = evaluate(trained_nn, test_features, test_labels)
+    test_probs, test_class = get_predictions(
+        trained_nn, test_features, test_labels)
+
+    group_confusions(test_labels, test_features, )
