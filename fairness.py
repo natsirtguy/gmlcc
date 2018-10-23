@@ -280,16 +280,15 @@ list(map(os.remove,
 print("Evaluated on validation set:")
 res = evaluate(trained_nn, validate_features, validate_labels, steps=1000)
 
-for f in train_features:
-    print(train_features[f].unique())
 
 will_test = False
 if will_test:
     # Get and parse the test data.
-    test_examples = pd.read_csv("https://archive.ics.uci.edu/"
-                                "ml/machine-learning-databases/adult/adult.test",
-                                names=columns, sep=r'\s*,\s*', engine='python',
-                                skiprows=[0], na_values='?')
+    test_examples = pd.read_csv(
+        "https://archive.ics.uci.edu/"
+        "ml/machine-learning-databases/adult/adult.test",
+        names=columns, sep=r'\s*,\s*', engine='python',
+        skiprows=[0], na_values='?')
     test_examples = test_examples.dropna(how='any', axis=0)
     test_features, test_labels = preprocess(test_examples)
 
