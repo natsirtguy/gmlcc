@@ -318,7 +318,7 @@ trained_nn = train_model(train_features[tfs], train_labels,
                          # l1_regularization_strength=0.0001,
                          show_loss=True,
                          # embedding=2,
-                         learning_rate=1e-4, steps=1000, batch_size=4)
+                         learning_rate=5e-4, steps=1000, batch_size=8)
 # Remove tf events.
 list(map(os.remove,
          glob.glob(os.path.join(

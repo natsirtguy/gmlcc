@@ -176,7 +176,7 @@
 * Prediction bias:
   Difference between average of predictions and average of observations
 * Possible causes for prediction bias:
-  BINBO: buggy pipeline, incomplete features, noisy data, biased training set, overly strong regularization
+  Noisy pipes train incomplete regularizers: buggy pipeline, noisy data, biased training set, incomplete features, overly strong regularization
 * Calibration layer:
   Layer that removes prediction bias from model output
 * Problems with calibration layer:
@@ -400,7 +400,7 @@
 * Weaknesses of offline inference:
   Need examples already (not good for long-tail stuff), longer to update
 * Questions to ask about input data:
-  crvnf: correlation, reliability, versioning, necessity, feedback
+  Correlated, reliable version necessitate feedback: correlation, reliability, versioning, necessity, feedback
 * Reason to think about correlation vs causation in data:
   Correlation (as opposed to causation) is more subject to change over time
 * Data versioning:
@@ -408,7 +408,7 @@
 * Feedback in data:
   Happens if your model actually influences the data
 * Examples of human biases in data:
-  ORSOCA: overgeneralization, reporting bias, selection bias, out-group homogeneity bias, confirmation bias, automation bias
+  Overgeneralized reporting selects out-group confirmed automatons: overgeneralization, reporting bias, selection bias, out-group homogeneity bias, confirmation bias, automation bias
 * Create categorical feature with a hash bucket:
   tf.feature_column.categorical_column_with_hash_bucket(feature, hash_bucket_size)
 * Reporting bias:
@@ -434,7 +434,7 @@
 * Automation bias:
   Assuming automated systems are more trustworthy
 * Ways to mitigate bias:
-  MEDICOS: Missing data, experts, distribution with outliers, implicit assumptions, context when publishing, interpret Outcomes (how would human treat task, social cues), subgroups
+  Missing experts distribute implicit context outcomes to subgroups: Missing data, experts, distribution with outliers, implicit assumptions, context when publishing, interpret Outcomes (how would human treat task, social cues), subgroups
 * Red flags for bias:
   Missing data, unexpected feature values, skewed data
 * Drop rows with any missing data in pandas:
@@ -443,6 +443,10 @@
   df.corr()
 * Plot categorical histogram in python:
   Use seaborn, seaborn.countplot(pd.Series)
+* Label leakage:
+  Label information "leaks" into features in ways that can't be used for prediction on new features (e.g. cancer hospitals)
+* Guidelines for first steps in an ML system:
+  Simple pipes make metric input configurations fail: keep first model simple, check data pipeline, use simple evaluation metric, own and monitor input features, treat configuration as code (check in/review), keep track of experiments (especially failures)
 * 
 
 #  LocalWords:  tf ds fn xs ys iid std argmax dataframe exp ROC AUC
