@@ -88,7 +88,7 @@
 * Multi-hot encoding:
   Multiple values in string are 1, multiple "active" categories
 * Steps to take in preparing data:
-  Look at distribution, avoid features with few/one member, remove/clip outliers, think of binning, remove magic values, make meaning clear, scale
+  MUCBOMS: make meaning clear, understand distribution, clip outliers, bin, remove features with ONE/few members, magic values, scale
 * Z score:
   (value - mean)/std
 * Possibles errors in data:
@@ -354,7 +354,11 @@
 * Get dataset from a TFRecord file:
   ds = tf.data.TFRecordDataset(path)
 * Parsing function for single TFRecordDataset record:
-  Create dictionary with feature/label names as keys, tf feature types as values, then call tf.parse_single_example(record, dict), then return tuple with dictionary of feature names and values, labels
+  Create dictionary {feature/label: tf.FixedLenFeature/VarLenFeature}, call tf.parse_single_example(record, dictionary), return ({features: values}, label)
+* Specify a fixed length feature type in tensorflow:
+  tf.FixedLenFeature(shape=[...], dtype, default)
+* Specify a variable length feature type in tensorflow:
+  tf.VarLenFeature(dtype)
 * Parse TFRecordDataset ds:
   Apply parsing function with ds.map(parse_fn)
 * Make a categorical feature column with a vocabulary list:
@@ -363,13 +367,76 @@
   Wrap in either indicator_column or embedding_column
 * Add embedding layer in tensorflow:
   Create embedding column, tf.feature_column.embedding_column(categorical, n_dims)
-* Save dataset from website using keras:
+* Save dataset from web site using keras:
   tf.keras.utils.get_file(file, url)
 * Default location of saved dataset from keras:
   ~/.keras/
 * Create categorical column from a vocabulary file:
   tf.feature_column.categorical_column_with_vocabulary_file(key, file)
-* 
+* Two types of training of production ML system:
+  Static model (trained offline) and dynamic model (trained online)
+* Positives of static model:
+  Easy to build, test, iterate
+* Drawbacks of static model:
+  Can become stale if situation changes
+* Drawbacks of dynamic model:
+  Much more monitoring required, model rollback, data quarantine
+* Positives of dynamic model:
+  Won't become stale quickly
+* When to use static vs dynamic model:
+  Use static when the data won't change over time
+* Two types of inference:
+  Online and offline
+* Strengths of online inference:
+  Good for long-tail, since predicts any new item
+* Weakness of online inference:
+  Usually need low latency (keep it simple), need to monitor more
+* Strengths of offline inference:
+  Not as computationally limited, can do sanity checks, quick lookup
+* Weaknesses of offline inference:
+  Need examples already (not good for long-tail stuff), longer to update
+* Questions to ask about input data:
+  crvnf: correlation, reliability, versioning, necessity, feedback
+* Reason to think about correlation vs causation in data:
+  Correlation (as opposed to causation) is more subject to change over time
+* Data versioning:
+  Format, method of producing data may change discontinuously
+* Feedback in data:
+  Happens if your model actually influences the data
+* Examples of human biases in data:
+  ROSOCA: Reporting bias, overgeneralization, selection bias, out-group homogeneity bias, confirmation bias, automation bias
+* Reporting bias:
+  Reported examples don't match real-world frequencies (interesting examples overrepresented)
+* Selection bias:
+  Chosen examples don't match real-world frequencies
+* Subtypes of selection bias:
+  Coverage (initial selection), non-response (only some people respond), and sampling (incorrect randomization) bias
+* Overgeneralization:
+  Generalizing too much from limited data
+* Group attribution bias:
+  Incorrectly generalizing properties of individuals to groups
+* Two examples of group attribution bias:
+  In-group bias (preferring members in your group), out-group homogeneity bias
+* Out-group homogeneity bias:
+  Thinking that people in other groups are more similar
+* Confirmation bias:
+  Example of implicit bias, paying attention to information that confirms previous opinions
+* Implicit bias:
+  Wrongly generalizing personal experience
+* Experimenter's bias:
+  Training model until it conforms with hypothesis, an implicit bias
+* Automation bias:
+  Assuming automated systems are more trustworthy
+* Ways to mitigate bias:
+  MEDICOS: Missing data, experts, distribution with outliers, implicit assumptions, context when publishing, interpret Outcomes (how would human treat task, social cues), subgroups
+* Red flags for bias:
+  Missing data, unexpected feature values, skewed data
+* Drop rows with any missing data in pandas:
+  df.dropna(how="any", axis=0)
+* Find correlation matrix in pandas:
+  df.corr()
+* Plot categorical histogram in python:
+  Use seaborn, seaborn.countplot(pd.Series)
 * 
 
 #  LocalWords:  tf ds fn xs ys iid std argmax dataframe exp ROC AUC
@@ -377,4 +444,6 @@
 #  LocalWords:  DDNRegressor memoizing Adagrad Softmax len NxM PCA xy
 #  LocalWords:  orthogonalizable QM MSE SGD cols col lr sess overfit
 #  LocalWords:  bucketized fpr tpr NP wrt pca SVD TFRecordDataset
-#  LocalWords:  TFRecord dict DNNClassifier
+#  LocalWords:  TFRecord dict DNNClassifier keras crvnf versioning
+#  LocalWords:  overgeneralization MUCBOMS FixedLenFeature dtype
+#  LocalWords:  VarLenFeature ROSOCA
