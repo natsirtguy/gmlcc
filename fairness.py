@@ -303,9 +303,27 @@ list(map(os.remove,
 
 # Validate.
 print("Evaluated on validation set:")
-res = evaluate(trained_nn, validate_features, validate_labels, steps=1000)
+res = evaluate(trained_nn, validate_features[tfs], validate_labels, steps=1000)
 
-# Get predictions for training data
+# Get predictions for training data.
+ads = make_dataset(train_features, None)
+preds = trained_nn.predict(train_fn(ads, shuffle=False))
+probabilities = []
+class_ids = []
+counter = 0
+while True:
+    try:
+        pred = next(preds)
+        probabilities.append(pred['probabilities'])
+        class_ids.append(pred['class_ids'][0])
+        print(
+            f"{counter:<5} {pred['probabilities'][0]:f2.2} "
+            f"{pred['probabilities'][1]:f2.2} {pred['class_ids'][0]}")
+    except (KeyboardInterrupt, StopIteration):
+        print("Finished")
+        break
+
+
 probabilities, class_ids = get_predictions(
     trained_nn, train_features, train_labels)
 
@@ -313,7 +331,6 @@ probabilities, class_ids = get_predictions(
 for category in ('race', 'gender'):
     for group in train_features[category]:
         mask = (train_features[category] == group)
-        masked_features = train_features[mask]
         masked_labels = train_labels[mask]
         masked_probabilities = probabilities[mask]
         cm = confusion_matrix(masked_labels, masked_probabilities)
