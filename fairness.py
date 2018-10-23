@@ -312,7 +312,13 @@ probabilities, class_ids = get_predictions(
 
 for category in ('race', 'gender'):
     for group in train_features[category]:
-        confusion_matrix
+        mask = (train_features[category] == group)
+        masked_features = train_features[mask]
+        masked_labels = train_labels[mask]
+        masked_probabilities = probabilities[mask]
+        cm = confusion_matrix(masked_labels, masked_probabilities)
+        plt.matshow(cm)
+        plt.title('Confusion matrix for {category}: {group}')
 
 
 will_test = False
