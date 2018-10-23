@@ -60,7 +60,7 @@ def plot_hists(examples):
         examples[[col]].hist()
 
 
-plot_hists(train_examples)
+# plot_hists(train_examples)
 
 
 # Notes: possible hard cap on age at 90, more men than women by a lot,
@@ -255,32 +255,11 @@ def evaluate(model, features, labels, steps=1000):
 def get_predictions(model, features, labels):
     '''Retrieve predictions from model.'''
     ds = make_dataset(features, labels)
-    preds = model.predict(train_fn(ds, shuffle=False))
+    preds = model.predict(train_fn(ds, shuffle=False, repeat=1))
     preds = list(preds)
     probabilities = np.vstack(pred["probabilities"] for pred in preds)
     class_ids = np.hstack(pred["class_ids"] for pred in preds)
     return probabilities, class_ids
-
-
-# Train a linear classifier.
-tfs = ['marital_status', 'age', 'hours_per_week', 'education',
-       'occupation', 'gender', 'capital_gain', 'capital_loss', 'race',
-       'workclass', 'relationship']
-trained_linear = train_model(train_features[tfs], train_labels,
-                             optimizer=tf.train.AdagradOptimizer,
-                             # model=trained,
-                             # hidden_units=[20, 20],
-                             # l1_strength=0.5,
-                             show_loss=True,
-                             learning_rate=1e-1, steps=1000, batch_size=1)
-# Remove tf events.
-list(map(os.remove,
-         glob.glob(os.path.join(
-             trained_linear.model_dir, "events.out.tfevents*"))))
-
-# Validate.
-print("Evaluated on validation set:")
-res = evaluate(trained_linear, validate_features, validate_labels, steps=1000)
 
 
 # Train a neural net classifier.
@@ -290,7 +269,7 @@ tfs = ['marital_status', 'age', 'hours_per_week', 'education',
 trained_nn = train_model(train_features[tfs], train_labels,
                          optimizer=tf.train.AdamOptimizer,
                          hidden_units=[1024, 512],
-                         dropout=.1,
+                         dropout=.3,
                          # buckets=buckets,
                          # l1_strength=0.5,
                          show_loss=True,
@@ -305,37 +284,18 @@ list(map(os.remove,
 print("Evaluated on validation set:")
 res = evaluate(trained_nn, validate_features[tfs], validate_labels, steps=1000)
 
-# Get predictions for training data.
-ads = make_dataset(train_features, None)
-preds = trained_nn.predict(train_fn(ads, shuffle=False))
-probabilities = []
-class_ids = []
-counter = 0
-while True:
-    try:
-        pred = next(preds)
-        probabilities.append(pred['probabilities'])
-        class_ids.append(pred['class_ids'][0])
-        print(
-            f"{counter:<5} {pred['probabilities'][0]:f2.2} "
-            f"{pred['probabilities'][1]:f2.2} {pred['class_ids'][0]}")
-    except (KeyboardInterrupt, StopIteration):
-        print("Finished")
-        break
-
-
 probabilities, class_ids = get_predictions(
     trained_nn, train_features, train_labels)
 
 
-for category in ('race', 'gender'):
-    for group in train_features[category]:
-        mask = (train_features[category] == group)
-        masked_labels = train_labels[mask]
-        masked_probabilities = probabilities[mask]
-        cm = confusion_matrix(masked_labels, masked_probabilities)
-        plt.matshow(cm)
-        plt.title('Confusion matrix for {category}: {group}')
+# for category in ('race', 'gender'):
+#     for group in train_features[category]:
+#         mask = (train_features[category] == group)
+#         masked_labels = train_labels[mask]
+#         masked_probabilities = probabilities[mask]
+#         cm = confusion_matrix(masked_labels, masked_probabilities)
+#         plt.matshow(cm)
+#         plt.title('Confusion matrix for {category}: {group}')
 
 
 will_test = False

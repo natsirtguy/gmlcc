@@ -81,6 +81,8 @@
   sklearn.metrics.mean_squared_error(predictions, targets)
 * Produce predictions using tensorflow:
   Call model.predict(input_fn=predict_fn), predict_fn does no shuffling, batch with single item, only repeat one epoch, only returns data
+* Repeat=None in tf.data.Dataset means:
+  That the data will repeat indefinitely, must set repeat=1 for predicitions
 * Feature engineering:
   Transforming raw data into a feature vector
 * One-hot encoding:
