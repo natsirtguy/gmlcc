@@ -94,9 +94,9 @@ validate_features = all_features.loc[perm[:22000]]
 validate_labels = all_labels.loc[perm[:22000]]
 
 
-def get_predictions(model, examples):
+def get_predictions(model, ds):
     '''Retrieve predictions from model.'''
-    preds = model.predict(input_fn(examples, None, shuffle=False))
+    preds = model.predict(train_fn(ds, shuffle=False))
     preds = list(preds)
     probabilities = np.vstack(pred["probabilities"] for pred in preds)
     class_ids = np.hstack(pred["class_ids"] for pred in preds)
@@ -119,9 +119,8 @@ def bucketize(feature, fc, n_bins):
     return tf.feature_column.bucketized_column(fc, qs)
 
 
-def input_fn(features, labels, batch_size=1, shuffle=10000,
-             repeat=None):
-
+def make_dataset(features, labels):
+    '''Create the tf dataset.'''
     fdict = {feature: features[feature] for feature in features}
 
     if labels is not None:
@@ -129,6 +128,11 @@ def input_fn(features, labels, batch_size=1, shuffle=10000,
     else:
         ds = tf.data.Dataset.from_tensor_slices(fdict)
 
+    return ds
+
+
+def train_fn(ds, batch_size=1, shuffle=10000, repeat=None):
+    '''Create input function for training, prediction, evaluation.'''
     if shuffle:
         return lambda: (ds.shuffle(shuffle).batch(batch_size).repeat(repeat)
                         .make_one_shot_iterator().get_next())
@@ -154,8 +158,14 @@ def train(examples, labels, steps=1000, batch_size=1,
                 col, examples[col].unique()))
         for col in cat_cols)
 
-    opt = optimizer(learning_rate)
+    # Create the dataset.
+    ds = make_dataset(examples, labels)
 
+    # Make optimizer.
+    opt = tf.contrib.estimator.clip_gradients_by_norm(
+        optimizer(learning_rate), 5.0)
+
+    # Initialize model.
     if not model:
         if hidden_units:
             model = tf.estimator.DNNClassifier(
@@ -165,24 +175,22 @@ def train(examples, labels, steps=1000, batch_size=1,
 
     # Use exponentially increasing period lengths.
     if show_loss:
-        period_steps = (np.arange(10) + 1)*steps//10
-        for period_step in period_steps:
+        for period in range(10):
             try:
-                model.train(input_fn(examples, labels,
-                                     batch_size=batch_size, shuffle=10000),
-                            steps=period_step)
-                evals = model.evaluate(input_fn(examples, labels,
-                                                shuffle=False), steps=1000)
-                print(
-                    f"Steps: {evals['global_step']:4}, Loss: {evals['loss']}")
+                model.train(train_fn(ds, batch_size=batch_size,
+                                     shuffle=10000), steps=period_step)
+                evals = model.evaluate(train_fn(ds, shuffle=False),
+                                       steps=1000)
+                print(f"Steps: {evals['global_step']:4}, "
+                      f"Loss: {evals['loss']}")
             except KeyboardInterrupt:
                 print("Training halted by user.")
                 break
     else:
-        model.train(input_fn(examples, labels,
+        model.train(train_fn(ds,
                              batch_size=batch_size, shuffle=10000),
                     steps=steps)
-        evals = model.evaluate(input_fn(examples, labels,
+        evals = model.evaluate(train_fn(ds,
                                         shuffle=False), steps=1000)
         print(f"Steps: {evals['global_step']:4}, Loss: {evals['loss']}")
 
@@ -192,7 +200,9 @@ def train(examples, labels, steps=1000, batch_size=1,
 def evaluate(model, features, labels, steps=1000):
     '''Check the mse on the validation set.'''
 
-    results = model.evaluate(input_fn(features, labels, shuffle=False),
+    ds = make_dataset(features, labels)
+
+    results = model.evaluate(train_fn(ds, shuffle=False),
                              steps=steps)
 
     for stat_name, stat_value in results.items():
@@ -212,14 +222,13 @@ def count_nonzero_weights(model):
 
 
 # Train a linear classifier.
-t_features = train_features
-trained_linear = train(t_features, train_labels,
+trained_linear = train(train_features, train_labels,
                        optimizer=tf.train.AdagradOptimizer,
                        # model=trained,
                        # hidden_units=[20, 20],
                        # l1_strength=0.5,
                        show_loss=True,
-                       learning_rate=1e-1, steps=1000, batch_size=25)
+                       learning_rate=1e-1, steps=100, batch_size=1)
 # Remove tf events.
 list(map(os.remove,
          glob.glob(os.path.join(
@@ -232,7 +241,7 @@ res = evaluate(trained_linear, validate_features, validate_labels, steps=1000)
 trained_nn = None
 term_choice = None
 for steps in (10, 90, 900):
-    trained_nn = train(train_features, train_examples
+    trained_nn = train(train_features, train_examples,
                        optimizer=tf.train.AdamOptimizer,
                        # model=trained_nn,
                        hidden_units=[20, 20],
