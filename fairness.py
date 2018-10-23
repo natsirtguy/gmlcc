@@ -268,47 +268,21 @@ res = evaluate(trained_linear, validate_features, validate_labels, steps=1000)
 # Train a neural net classifier, create word clouds.
 trained_nn = train_model(train_features, train_labels,
                          optimizer=tf.train.AdamOptimizer,
-                         hidden_units=[50, 25],
-                         dropout=.2,
+                         hidden_units=[100, 50],
+                         dropout=.3,
                          # buckets=buckets,
                          # l1_strength=0.5,
                          show_loss=True,
                          # embedding=2,
-                         learning_rate=1e-4, steps=1000, batch_size=50)
+                         learning_rate=3e-4, steps=1000, batch_size=50)
 # Remove tf events.
 list(map(os.remove,
          glob.glob(os.path.join(
              trained_nn.model_dir, "events.out.tfevents*"))))
 
 # Validate.
-print("Evaluated on training set:")
+print("Evaluated on validation set:")
 res = evaluate(trained_nn, validate_features, validate_labels, steps=1000)
-
-# Investigate embedding layer.
-word_cloud = False
-if word_cloud:
-    if term_choice is None:
-        # Pick 100 random terms on the first loop.
-        term_choice = np.random.permutation(len(all_terms))[:100]
-        random_terms = all_terms[term_choice]
-
-    # Extract the weights for these terms.
-    embed_weights = trained_nn.get_variable_value(
-        'dnn/input_from_feature_columns/input_layer/'
-        'terms_embedding/embedding_weights')
-    random_weights = embed_weights[term_choice, :]
-
-    # Plot the terms.
-    plt.figure()
-    plt.title(f"Embedding after {res['global_step']} steps")
-    x_lims = np.array([random_weights.T[0].min(),
-                       random_weights.T[0].max()])
-    y_lims = np.array([random_weights.T[1].min(),
-                       random_weights.T[1].max()])
-    plt.xlim(1.5*x_lims)
-    plt.ylim(1.5*y_lims)
-    for x, y, term in zip(*random_weights.T, informative_terms):
-        plt.text(x, y, term, fontsize=8)
 
 
 will_test = False
@@ -319,6 +293,7 @@ if will_test:
                                 names=columns, sep=r'\s*,\s*', engine='python',
                                 skiprows=[0], na_values='?')
     test_examples = test_examples.dropna(how='any', axis=0)
+    test_features, test_labels = preprocess(test_examples)
 
     print("Evaluated on test set:")
-    tres = evaluate(trained_nn, test_ds)
+    tres = evaluate(trained_nn, test_features, test_labels)
