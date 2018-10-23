@@ -407,6 +407,8 @@
   Happens if your model actually influences the data
 * Examples of human biases in data:
   ORSOCA: overgeneralization, reporting bias, selection bias, out-group homogeneity bias, confirmation bias, automation bias
+* Create categorical feature with a hash bucket:
+  tf.feature_column.categorical_column_with_hash_bucket(feature, hash_bucket_size)
 * Reporting bias:
   Reported examples don't match real-world frequencies (interesting examples overrepresented)
 * Selection bias:

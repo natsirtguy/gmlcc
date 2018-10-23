@@ -5,6 +5,7 @@ import glob
 import numpy as np
 import pandas as pd
 import matplotlib
+from sklearn.metrics import confusion_matrix
 import tensorflow as tf
 matplotlib.use('TkAgg')
 import seaborn as sbn           # noqa: E402
@@ -136,7 +137,8 @@ def train_fn(ds, batch_size=1, shuffle=10000, repeat=None):
 def train_model(examples, labels, steps=1000, batch_size=1,
                 learning_rate=0.1, hidden_units=[10], show_loss=False,
                 model=None, eval_steps=100, dropout=None,
-                buckets=None,
+                buckets=None, embeddings=None,
+                l1_regularization_strength=None,
                 optimizer=tf.train.GradientDescentOptimizer):
     '''Write the training function from scratch for practice.'''
 
@@ -163,10 +165,27 @@ def train_model(examples, labels, steps=1000, batch_size=1,
     # Add categorical features.
     fcdict.update(
         {feature:
-         tf.feature_column.indicator_column(
-             tf.feature_column.categorical_column_with_vocabulary_list(
-                 feature, examples[feature].unique()))
+         tf.feature_column.categorical_column_with_vocabulary_list(
+             feature, examples[feature].unique())
          for feature in categorical_cols})
+
+    # Add columns with embeddings.
+    if embeddings:
+        embedded_features = (
+            {feature:
+             tf.feature_column.embedding_column(
+                 fcdict.pop(feature),
+                 embeddings[feature])
+             for feature in embeddings})
+        fcdict.update(embedded_features)
+        categorical_cols = set(categorical_cols) - set(embeddings.keys())
+
+    # Make indicator columns for features that are not embedded.
+    indicators = {feature:
+                  tf.feature_column.indicator_column(
+                      fcdict.pop(feature))
+                  for feature in categorical_cols}
+    fcdict.update(indicators)
 
     # Get the feature columns from the dictionary.
     fcs = list(fcdict.values())
@@ -175,6 +194,9 @@ def train_model(examples, labels, steps=1000, batch_size=1,
     ds = make_dataset(examples, labels)
 
     # Make optimizer.
+    if l1_regularization_strength:
+        opt = optimizer(learning_rate=learning_rate,
+                        l1_regularization_strength=l1_regularization_strength)
     opt = tf.contrib.estimator.clip_gradients_by_norm(
         optimizer(learning_rate=learning_rate), 5.0)
 
@@ -230,23 +252,16 @@ def evaluate(model, features, labels, steps=1000):
     return results
 
 
-def count_nonzero_weights(model):
-    '''Find number of nonzero weights.'''
-    variables = model.get_variable_names()
-    return sum(np.count_nonzero(model.get_variable_value(variable))
-               for variable in variables if
-               all((bad not in variable) for bad in
-                   ['global_step', 'centered_bias_weight',
-                    'bias_weight', 'Ftrl']))
-
-
 # Train a linear classifier.
-trained_linear = train_model(train_features, train_labels,
+tfs = ['marital_status', 'age', 'hours_per_week', 'education',
+       'occupation', 'gender', 'capital_gain', 'capital_loss', 'race',
+       'workclass', 'relationship']
+trained_linear = train_model(train_features[tfs], train_labels,
                              optimizer=tf.train.AdagradOptimizer,
                              # model=trained,
                              # hidden_units=[20, 20],
                              # l1_strength=0.5,
-                             show_loss=False,
+                             show_loss=True,
                              learning_rate=1e-1, steps=1000, batch_size=1)
 # Remove tf events.
 list(map(os.remove,
@@ -264,7 +279,7 @@ tfs = ['marital_status', 'age', 'hours_per_week', 'education',
        'workclass', 'relationship']
 trained_nn = train_model(train_features[tfs], train_labels,
                          optimizer=tf.train.AdamOptimizer,
-                         hidden_units=[30, 15],
+                         hidden_units=[1024, 512],
                          dropout=.1,
                          # buckets=buckets,
                          # l1_strength=0.5,
@@ -276,7 +291,10 @@ list(map(os.remove,
          glob.glob(os.path.join(
              trained_nn.model_dir, "events.out.tfevents*"))))
 
-# Validate.
+for category in ('race', 'gender'):
+    for group in train_features[category]:
+
+        # Validate.
 print("Evaluated on validation set:")
 res = evaluate(trained_nn, validate_features, validate_labels, steps=1000)
 
