@@ -406,7 +406,7 @@
 * Feedback in data:
   Happens if your model actually influences the data
 * Examples of human biases in data:
-  ROSOCA: Reporting bias, overgeneralization, selection bias, out-group homogeneity bias, confirmation bias, automation bias
+  ORSOCA: overgeneralization, reporting bias, selection bias, out-group homogeneity bias, confirmation bias, automation bias
 * Reporting bias:
   Reported examples don't match real-world frequencies (interesting examples overrepresented)
 * Selection bias:
@@ -448,4 +448,4 @@
 #  LocalWords:  bucketized fpr tpr NP wrt pca SVD TFRecordDataset df
 #  LocalWords:  TFRecord dict DNNClassifier keras crvnf versioning pd
 #  LocalWords:  overgeneralization MUCBOMS FixedLenFeature dtype corr
-#  LocalWords:  VarLenFeature ROSOCA dropna seaborn countplot
+#  LocalWords:  VarLenFeature ROSOCA dropna seaborn countplot ORSOCA

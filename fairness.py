@@ -41,8 +41,10 @@ def examine(examples):
 
 def num_cat(df):
     '''Return the numerical and categorical columns.'''
-    num_cols = df.columns[np.logical_or(df.dtypes == "int64",
-                                        df.dtypes == "float64")]
+    num_cols = df.columns[np.logical_or.reduce((df.dtypes == "int64",
+                                                df.dtypes == "float64",
+                                                df.dtypes == "bool"))]
+
     cat_cols = list(set(df.columns) - set(num_cols))
     return num_cols, cat_cols
 
@@ -92,15 +94,6 @@ train_features = all_features.loc[perm[:22000]]
 train_labels = all_labels.loc[perm[:22000]]
 validate_features = all_features.loc[perm[:22000]]
 validate_labels = all_labels.loc[perm[:22000]]
-
-
-def get_predictions(model, ds):
-    '''Retrieve predictions from model.'''
-    preds = model.predict(train_fn(ds, shuffle=False))
-    preds = list(preds)
-    probabilities = np.vstack(pred["probabilities"] for pred in preds)
-    class_ids = np.hstack(pred["class_ids"] for pred in preds)
-    return probabilities, class_ids
 
 
 def bucketize(feature, fc, n_bins):
@@ -265,16 +258,19 @@ print("Evaluated on validation set:")
 res = evaluate(trained_linear, validate_features, validate_labels, steps=1000)
 
 
-# Train a neural net classifier, create word clouds.
-trained_nn = train_model(train_features, train_labels,
+# Train a neural net classifier.
+tfs = ['marital_status', 'age', 'hours_per_week', 'education',
+       'occupation', 'gender', 'capital_gain', 'capital_loss', 'race',
+       'workclass', 'relationship']
+trained_nn = train_model(train_features[tfs], train_labels,
                          optimizer=tf.train.AdamOptimizer,
-                         hidden_units=[100, 50],
-                         dropout=.3,
+                         hidden_units=[30, 15],
+                         dropout=.1,
                          # buckets=buckets,
                          # l1_strength=0.5,
                          show_loss=True,
                          # embedding=2,
-                         learning_rate=3e-4, steps=1000, batch_size=50)
+                         learning_rate=3e-3, steps=1000, batch_size=50)
 # Remove tf events.
 list(map(os.remove,
          glob.glob(os.path.join(
@@ -284,6 +280,8 @@ list(map(os.remove,
 print("Evaluated on validation set:")
 res = evaluate(trained_nn, validate_features, validate_labels, steps=1000)
 
+for f in train_features:
+    print(train_features[f].unique())
 
 will_test = False
 if will_test:
