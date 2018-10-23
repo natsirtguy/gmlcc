@@ -5,9 +5,9 @@ import glob
 import numpy as np
 import pandas as pd
 import matplotlib
-import seaborn as sbn
 import tensorflow as tf
 matplotlib.use('TkAgg')
+import seaborn as sbn           # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
 
@@ -26,31 +26,38 @@ columns = ["age", "workclass", "fnlwgt", "education", "education_num",
            "income_bracket"]
 
 # Get data.
-train_df = pd.read_csv(
+train_examples = pd.read_csv(
     "https://archive.ics.uci.edu/"
     "ml/machine-learning-databases/adult/adult.data",
     names=columns, sep=r'\s*,\s*', engine='python', na_values='?')
-train_df = train_df.dropna(how='any', axis=0)
+train_examples = train_examples.dropna(how='any', axis=0)
 
 
-def examine(df):
+def examine(examples):
     '''Examine data in dataframe.'''
-    for i in range(0, len(df.columns)):
-        print(df.iloc[:, i:i+1].describe())
+    for i in range(0, len(examples.columns)):
+        print(examples.iloc[:, i:i+1].describe())
 
 
-def plot_hists(df):
-    '''Plot histograms for categorical and numerical data.'''
-    num_cols = df.columns[df.dtypes == "int64"]
+def num_cat(df):
+    '''Return the numerical and categorical columns.'''
+    num_cols = df.columns[np.logical_or(df.dtypes == "int64",
+                                        df.dtypes == "float64")]
     cat_cols = list(set(df.columns) - set(num_cols))
+    return num_cols, cat_cols
+
+
+def plot_hists(examples):
+    '''Plot histograms for categorical and numerical data.'''
+    num_cols, cat_cols = num_cat(examples)
     for col in cat_cols:
         plt.figure()
-        sbn.countplot(df[col])
+        sbn.countplot(examples[col])
     for col in num_cols:
-        df[[col]].hist()
+        examples[[col]].hist()
 
 
-plot_hists(train_df)
+plot_hists(train_examples)
 
 
 # Notes: possible hard cap on age at 90, more men than women by a lot,
@@ -59,37 +66,37 @@ plot_hists(train_df)
 # education_num are redundant, possible hard cap on captial_gain at 99999,
 # units of capital_gain and loss unclear (thousand? dollars?)
 
-def preprocess(df):
+def preprocess(examples):
     '''Prepocess the dataframe and return features and labels.'''
-    features = df.copy()[list(set(columns) - {"income_bracket"})]
-    labels = df.copy()[["income_bracket"]]
+    features = examples.copy()[list(
+        set(columns) - {"income_bracket", "education_num"})]
+
+    num_cols, cat_cols = num_cat(features)
+
+    # Scale numerical columns, use z-score.
+    for feature in num_cols:
+        s = features[feature]
+        features[feature] = (s - s.mean())/(s.std())
+
+    labels = pd.DataFrame()
+    labels = examples.copy()[["income_bracket"]]
+    labels = (labels == ">50K")
+
     return features, labels
 
 
 # Separate into training and validation data.
-perm = np.random.permutation(train_df.index)
-all_features, all_labels = preprocess(train_df)
+perm = np.random.permutation(train_examples.index)
+all_features, all_labels = preprocess(train_examples)
 train_features = all_features.loc[perm[:22000]]
 train_labels = all_labels.loc[perm[:22000]]
 validate_features = all_features.loc[perm[:22000]]
 validate_labels = all_labels.loc[perm[:22000]]
 
 
-def train_fn(ds, shuffle=10000, batch_size=1, repeat=None):
-    '''Feed data for train.'''
-    if shuffle:
-        return lambda: (ds.shuffle(shuffle)
-                        .padded_batch(batch_size, ds.output_shapes)
-                        .repeat(repeat)
-                        .make_one_shot_iterator().get_next())
-    return lambda: (ds.padded_batch(batch_size, ds.output_shapes)
-                    .repeat(repeat)
-                    .make_one_shot_iterator().get_next())
-
-
-def get_predictions(model, ds):
+def get_predictions(model, examples):
     '''Retrieve predictions from model.'''
-    preds = model.predict(train_fn(ds, shuffle=False))
+    preds = model.predict(input_fn(examples, None, shuffle=False))
     preds = list(preds)
     probabilities = np.vstack(pred["probabilities"] for pred in preds)
     class_ids = np.hstack(pred["class_ids"] for pred in preds)
@@ -97,7 +104,7 @@ def get_predictions(model, ds):
 
 
 def bucketize(feature, fc, n_bins):
-    '''Bin pandas series in dataframe df.
+    '''Bin pandas series in dataframe examples.
 
     Args:
       feature: pandas.Series
@@ -112,124 +119,81 @@ def bucketize(feature, fc, n_bins):
     return tf.feature_column.bucketized_column(fc, qs)
 
 
-def train(examples, labels, hidden_units=None, bucket_sizes=None,
-          features=None, lr=1e-4,
-          steps=100, optimizer=tf.train.GradientDescentOptimizer,
-          crosses=None,
-          l1_strength=None, batch_size=1, model=None, dropout=None,
-          embedding=None, show_loss=False):
-    '''Create and train a linear or neural network model.
+def input_fn(features, labels, batch_size=1, shuffle=10000,
+             repeat=None):
 
-    Args:
-      ds: tf.data.DataSet, dataset to train on
-      hidden_units: list of ints, number of neurons per layer
-      features: list of selected features from examples
-      lr: float, learning rate
-      steps: int, number of steps to train
-      optimizer: tf.train.Optimizer, type of optimizer to use
-      l1_strength: float, strength of L1 regularization
-      batch_size: int, number of examples per batch
-      model: tensorflow LinearClassifier, previously trained model
-      dropout: float between 0 and 1, probability to dropout a given node
-      embedding: int, number of dimensions for embedding_column
-      show_loss: bool, if True show loss over 10 periods
+    fdict = {feature: features[feature] for feature in features}
 
-    Returns:
-      A trained tensorflow.estimator.LinearClassifier or DNNClassifier.
-    '''
-
-    # Create feature columns and dictionary mapping feature names to them.
-    if not features:
-        features = examples.columns
-    fcdict = {feature: tf.feature_column.numeric_column(feature)
-              for feature in features}
-    fcs = fcdict.values()
-
-    # Use buckets if bucket_sizes is specified.
-    if bucket_sizes:
-        if len(bucket_sizes) != len(features):
-            raise ValueError(
-                'The number of buckets must match the number of features.')
-
-        fcdict = {feature:
-                  bucketize(examples[feature], fc, bucket_sizes[feature])
-                  if bucket_sizes[feature] else fc
-                  for feature, fc in fcdict.items()}
-
-        fcs = fcdict.values()
-
-    # Use crossed columns if crosses is specified.
-    if crosses:
-        for cross in crosses:
-            cross_name = '_x_'.join(cross)
-            cross_fc = [fcdict[feature] for feature in cross]
-            fcdict[cross_name] = tf.feature_column.crossed_column(
-                cross_fc, 1000)
-
-        fcs = fcdict.values()
-
-    # Construct tensorflow dataset.
-    ds = tf.data.Dataset.from_tensor_slices(
-        ({feature: examples[feature] for feature in train_features},
-         np.array(labels)))
-
-    # Construct informative terms categorical column.
-    # terms_fc = tf.feature_column.categorical_column_with_vocabulary_list(
-    #     "terms", informative_terms)
-
-    # if hidden_units:
-    #     if embedding:
-    #         fcs = [tf.feature_column.embedding_column(terms_fc, embedding)]
-    #     else:
-    #         fcs = [tf.feature_column.indicator_column(terms_fc)]
-    # else:
-    #     fcs = [terms_fc]
-
-    if l1_strength:
-        opt = optimizer(
-            learning_rate=lr, l1_regularization_strength=l1_strength)
+    if labels is not None:
+        ds = tf.data.Dataset.from_tensor_slices((fdict, np.array(labels)))
     else:
-        opt = optimizer(learning_rate=lr)
-    opt = tf.contrib.estimator.clip_gradients_by_norm(opt, 5.0)
+        ds = tf.data.Dataset.from_tensor_slices(fdict)
+
+    if shuffle:
+        return lambda: (ds.shuffle(shuffle).batch(batch_size).repeat(repeat)
+                        .make_one_shot_iterator().get_next())
+    return lambda: (ds.batch(batch_size).repeat(repeat)
+                    .make_one_shot_iterator().get_next())
+
+
+def train(examples, labels, steps=1000, batch_size=1,
+          learning_rate=0.1, hidden_units=[10],
+          show_loss=False, model=None,
+          optimizer=tf.train.GradientDescentOptimizer):
+    '''Write the training function from scratch for practice.'''
+
+    # Find numeric and categorical columns.
+    num_cols, cat_cols = num_cat(examples)
+
+    # Create feature columns.
+    fcs = [tf.feature_column.numeric_column(feature)
+           for feature in num_cols]
+    fcs.extend(
+        tf.feature_column.indicator_column(
+            tf.feature_column.categorical_column_with_vocabulary_list(
+                col, examples[col].unique()))
+        for col in cat_cols)
+
+    opt = optimizer(learning_rate)
 
     if not model:
-        m_kwargs = {'feature_columns': fcs,
-                    'optimizer': opt,
-                    'config': tf.estimator.RunConfig(keep_checkpoint_max=1)
-                    }
         if hidden_units:
-            m_type = tf.estimator.DNNClassifier
-            m_kwargs['hidden_units'] = hidden_units
-            m_kwargs['dropout'] = dropout
+            model = tf.estimator.DNNClassifier(
+                hidden_units, fcs, optimizer=opt)
         else:
-            m_type = tf.estimator.LinearClassifier
+            model = tf.estimator.LinearClassifier(fcs, optimizer=opt)
 
-        model = m_type(**m_kwargs)
-
+    # Use exponentially increasing period lengths.
     if show_loss:
-        for _ in range(10):
+        period_steps = (np.arange(10) + 1)*steps//10
+        for period_step in period_steps:
             try:
-                model.train(
-                    train_fn(ds, shuffle=10000, batch_size=batch_size),
-                    steps=steps//10)
-                print("Loss:",
-                      model.evaluate(train_fn(ds, shuffle=False),
-                                     steps=1000)["loss"])
+                model.train(input_fn(examples, labels,
+                                     batch_size=batch_size, shuffle=10000),
+                            steps=period_step)
+                evals = model.evaluate(input_fn(examples, labels,
+                                                shuffle=False), steps=1000)
+                print(
+                    f"Steps: {evals['global_step']:4}, Loss: {evals['loss']}")
             except KeyboardInterrupt:
-                print("\nTraining stopped by user.")
+                print("Training halted by user.")
                 break
     else:
-        model.train(
-            train_fn(ds, shuffle=1000, batch_size=batch_size),
-            steps=steps)
+        model.train(input_fn(examples, labels,
+                             batch_size=batch_size, shuffle=10000),
+                    steps=steps)
+        evals = model.evaluate(input_fn(examples, labels,
+                                        shuffle=False), steps=1000)
+        print(f"Steps: {evals['global_step']:4}, Loss: {evals['loss']}")
 
     return model
 
 
-def evaluate(model, features, labels, steps=1000, features=None):
-    '''Check the mse on the validation set. '''
+def evaluate(model, features, labels, steps=1000):
+    '''Check the mse on the validation set.'''
 
-    results = model.evaluate(train_fn(ds, shuffle=False), steps=steps)
+    results = model.evaluate(input_fn(features, labels, shuffle=False),
+                             steps=steps)
 
     for stat_name, stat_value in results.items():
         print(f"{stat_name:>20} | {stat_value}")
@@ -248,32 +212,34 @@ def count_nonzero_weights(model):
 
 
 # Train a linear classifier.
-trained_linear = train(train_features, train_labels,
+t_features = train_features
+trained_linear = train(t_features, train_labels,
                        optimizer=tf.train.AdagradOptimizer,
                        # model=trained,
                        # hidden_units=[20, 20],
                        # l1_strength=0.5,
-                       lr=1e-1, steps=1000, batch_size=25)
+                       show_loss=True,
+                       learning_rate=1e-1, steps=1000, batch_size=25)
 # Remove tf events.
 list(map(os.remove,
          glob.glob(os.path.join(
              trained_linear.model_dir, "events.out.tfevents*"))))
 print("Evaluated on validation set:")
-res = evaluate(trained_linear, validate_labels)
+res = evaluate(trained_linear, validate_features, validate_labels, steps=1000)
 
 
 # Train a neural net classifier, create word clouds.
 trained_nn = None
 term_choice = None
 for steps in (10, 90, 900):
-    trained_nn = train(train_ds,
+    trained_nn = train(train_features, train_examples
                        optimizer=tf.train.AdamOptimizer,
-                       model=trained_nn,
+                       # model=trained_nn,
                        hidden_units=[20, 20],
                        # dropout=.3,
                        # l1_strength=0.5,
                        show_loss=False,
-                       embedding=2,
+                       # embedding=2,
                        lr=1e-1, steps=steps, batch_size=25)
     # Remove tf events.
     list(map(os.remove,
@@ -312,11 +278,11 @@ for steps in (10, 90, 900):
 will_test = False
 if will_test:
     # Get and parse the test data.
-    test_df = pd.read_csv("https://archive.ics.uci.edu/"
-                          "ml/machine-learning-databases/adult/adult.test",
-                          names=columns, sep=r'\s*,\s*', engine='python',
-                          skiprows=[0], na_values='?')
-    test_df = test_df.dropna(how='any', axis=0)
+    test_examples = pd.read_csv("https://archive.ics.uci.edu/"
+                                "ml/machine-learning-databases/adult/adult.test",
+                                names=columns, sep=r'\s*,\s*', engine='python',
+                                skiprows=[0], na_values='?')
+    test_examples = test_examples.dropna(how='any', axis=0)
 
     print("Evaluated on test set:")
     tres = evaluate(trained_nn, test_ds)

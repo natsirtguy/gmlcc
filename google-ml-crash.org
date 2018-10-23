@@ -443,7 +443,7 @@
 #  LocalWords:  AUROC TP FP BINBO logit logits ids int ReLU fcs ReLUs
 #  LocalWords:  DDNRegressor memoizing Adagrad Softmax len NxM PCA xy
 #  LocalWords:  orthogonalizable QM MSE SGD cols col lr sess overfit
-#  LocalWords:  bucketized fpr tpr NP wrt pca SVD TFRecordDataset
-#  LocalWords:  TFRecord dict DNNClassifier keras crvnf versioning
-#  LocalWords:  overgeneralization MUCBOMS FixedLenFeature dtype
-#  LocalWords:  VarLenFeature ROSOCA
+#  LocalWords:  bucketized fpr tpr NP wrt pca SVD TFRecordDataset df
+#  LocalWords:  TFRecord dict DNNClassifier keras crvnf versioning pd
+#  LocalWords:  overgeneralization MUCBOMS FixedLenFeature dtype corr
+#  LocalWords:  VarLenFeature ROSOCA dropna seaborn countplot
