@@ -354,9 +354,11 @@
 * Get dataset from a TFRecord file:
   ds = tf.data.TFRecordDataset(path)
 * Parsing function for single TFRecordDataset record:
-  Create dictionary {feature/label: tf.FixedLenFeature/VarLenFeature}, call tf.parse_single_example(record, dictionary), return ({features: values}, label)
+  Create dictionary {feature/label: tf.FixedLenFeature/VarLenFeature}, call tf.parse_single_example(record, dictionary), return ({features: values}, label) using returned dictionary
 * Specify a fixed length feature type in tensorflow:
   tf.FixedLenFeature(shape=[...], dtype, default)
+* tf.parse_single_examples(record, dictionary) returns:
+  A dictionary with keys from dictionary as keys and tensors of the appropriate type as values
 * Specify a variable length feature type in tensorflow:
   tf.VarLenFeature(dtype)
 * Parse TFRecordDataset ds:

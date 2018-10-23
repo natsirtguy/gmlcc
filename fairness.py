@@ -140,58 +140,84 @@ def train_fn(ds, batch_size=1, shuffle=10000, repeat=None):
                     .make_one_shot_iterator().get_next())
 
 
-def train(examples, labels, steps=1000, batch_size=1,
-          learning_rate=0.1, hidden_units=[10],
-          show_loss=False, model=None,
-          optimizer=tf.train.GradientDescentOptimizer):
+def train_model(examples, labels, steps=1000, batch_size=1,
+                learning_rate=0.1, hidden_units=[10], show_loss=False,
+                model=None, eval_steps=100, dropout=None,
+                buckets=None,
+                optimizer=tf.train.GradientDescentOptimizer):
     '''Write the training function from scratch for practice.'''
 
     # Find numeric and categorical columns.
-    num_cols, cat_cols = num_cat(examples)
+    numeric_cols, categorical_cols = num_cat(examples)
 
-    # Create feature columns.
-    fcs = [tf.feature_column.numeric_column(feature)
-           for feature in num_cols]
-    fcs.extend(
-        tf.feature_column.indicator_column(
-            tf.feature_column.categorical_column_with_vocabulary_list(
-                col, examples[col].unique()))
-        for col in cat_cols)
+    # Create numeric feature columns.
+    fcdict = {feature: tf.feature_column.numeric_column(feature)
+              for feature in numeric_cols}
+
+    # Bucket the numeric columns if specified in buckets.
+    if buckets:
+        if set(buckets.keys()) > set(numeric_cols):
+            print("Bucket keys must be numeric column names.")
+            raise ValueError
+        else:
+            bucket_features = (
+                {feature: bucketize(examples[feature],
+                                    fcdict.pop(feature),
+                                    buckets[feature])
+                 for feature in buckets})
+        fcdict.update(bucket_features)
+
+    # Add categorical features.
+    fcdict.update(
+        {feature:
+         tf.feature_column.indicator_column(
+             tf.feature_column.categorical_column_with_vocabulary_list(
+                 feature, examples[feature].unique()))
+         for feature in categorical_cols})
+
+    # Get the feature columns from the dictionary.
+    fcs = list(fcdict.values())
 
     # Create the dataset.
     ds = make_dataset(examples, labels)
 
     # Make optimizer.
     opt = tf.contrib.estimator.clip_gradients_by_norm(
-        optimizer(learning_rate), 5.0)
+        optimizer(learning_rate=learning_rate), 5.0)
 
     # Initialize model.
     if not model:
+        mkwargs = {'feature_columns': fcs,
+                   'optimizer': opt}
         if hidden_units:
-            model = tf.estimator.DNNClassifier(
-                hidden_units, fcs, optimizer=opt)
+            model_type = tf.estimator.DNNClassifier
+            mkwargs['hidden_units'] = hidden_units
+            if dropout:
+                mkwargs['dropout'] = dropout
         else:
-            model = tf.estimator.LinearClassifier(fcs, optimizer=opt)
+            model_type = tf.estimator.LinearClassifier
+
+        model = model_type(**mkwargs)
 
     # Use exponentially increasing period lengths.
     if show_loss:
         for period in range(10):
             try:
                 model.train(train_fn(ds, batch_size=batch_size,
-                                     shuffle=10000), steps=period_step)
-                evals = model.evaluate(train_fn(ds, shuffle=False),
-                                       steps=1000)
-                print(f"Steps: {evals['global_step']:4}, "
-                      f"Loss: {evals['loss']}")
+                                     shuffle=10000), steps=steps//10)
+                res = model.evaluate(train_fn(ds, batch_size=1,
+                                              shuffle=False), steps=100)
+                print(f"Steps: {res['global_step']}, "
+                      f"Loss: {res['loss']}")
             except KeyboardInterrupt:
-                print("Training halted by user.")
+                print("\nTraining halted by user.")
                 break
     else:
         model.train(train_fn(ds,
                              batch_size=batch_size, shuffle=10000),
                     steps=steps)
-        evals = model.evaluate(train_fn(ds,
-                                        shuffle=False), steps=1000)
+        evals = model.evaluate(
+            train_fn(ds, shuffle=False), steps=eval_steps)
         print(f"Steps: {evals['global_step']:4}, Loss: {evals['loss']}")
 
     return model
@@ -222,66 +248,67 @@ def count_nonzero_weights(model):
 
 
 # Train a linear classifier.
-trained_linear = train(train_features, train_labels,
-                       optimizer=tf.train.AdagradOptimizer,
-                       # model=trained,
-                       # hidden_units=[20, 20],
-                       # l1_strength=0.5,
-                       show_loss=True,
-                       learning_rate=1e-1, steps=100, batch_size=1)
+trained_linear = train_model(train_features, train_labels,
+                             optimizer=tf.train.AdagradOptimizer,
+                             # model=trained,
+                             # hidden_units=[20, 20],
+                             # l1_strength=0.5,
+                             show_loss=False,
+                             learning_rate=1e-1, steps=1000, batch_size=1)
 # Remove tf events.
 list(map(os.remove,
          glob.glob(os.path.join(
              trained_linear.model_dir, "events.out.tfevents*"))))
+
+# Validate.
 print("Evaluated on validation set:")
 res = evaluate(trained_linear, validate_features, validate_labels, steps=1000)
 
 
 # Train a neural net classifier, create word clouds.
-trained_nn = None
-term_choice = None
-for steps in (10, 90, 900):
-    trained_nn = train(train_features, train_examples,
-                       optimizer=tf.train.AdamOptimizer,
-                       # model=trained_nn,
-                       hidden_units=[20, 20],
-                       # dropout=.3,
-                       # l1_strength=0.5,
-                       show_loss=False,
-                       # embedding=2,
-                       lr=1e-1, steps=steps, batch_size=25)
-    # Remove tf events.
-    list(map(os.remove,
-             glob.glob(os.path.join(
-                 trained_nn.model_dir, "events.out.tfevents*"))))
-    print("Evaluated on training set:")
-    res = evaluate(trained_nn, train_ds)
+trained_nn = train_model(train_features, train_labels,
+                         optimizer=tf.train.AdamOptimizer,
+                         hidden_units=[50, 25],
+                         dropout=.2,
+                         # buckets=buckets,
+                         # l1_strength=0.5,
+                         show_loss=True,
+                         # embedding=2,
+                         learning_rate=1e-4, steps=1000, batch_size=50)
+# Remove tf events.
+list(map(os.remove,
+         glob.glob(os.path.join(
+             trained_nn.model_dir, "events.out.tfevents*"))))
 
-    # Investigate embedding layer.
-    word_cloud = True
-    if word_cloud:
-        if term_choice is None:
-            # Pick 100 random terms on the first loop.
-            term_choice = np.random.permutation(len(all_terms))[:100]
-            random_terms = all_terms[term_choice]
+# Validate.
+print("Evaluated on training set:")
+res = evaluate(trained_nn, validate_features, validate_labels, steps=1000)
 
-        # Extract the weights for these terms.
-        embed_weights = trained_nn.get_variable_value(
-            'dnn/input_from_feature_columns/input_layer/'
-            'terms_embedding/embedding_weights')
-        random_weights = embed_weights[term_choice, :]
+# Investigate embedding layer.
+word_cloud = False
+if word_cloud:
+    if term_choice is None:
+        # Pick 100 random terms on the first loop.
+        term_choice = np.random.permutation(len(all_terms))[:100]
+        random_terms = all_terms[term_choice]
 
-        # Plot the terms.
-        plt.figure()
-        plt.title(f"Embedding after {res['global_step']} steps")
-        x_lims = np.array([random_weights.T[0].min(),
-                           random_weights.T[0].max()])
-        y_lims = np.array([random_weights.T[1].min(),
-                           random_weights.T[1].max()])
-        plt.xlim(1.5*x_lims)
-        plt.ylim(1.5*y_lims)
-        for x, y, term in zip(*random_weights.T, informative_terms):
-            plt.text(x, y, term, fontsize=8)
+    # Extract the weights for these terms.
+    embed_weights = trained_nn.get_variable_value(
+        'dnn/input_from_feature_columns/input_layer/'
+        'terms_embedding/embedding_weights')
+    random_weights = embed_weights[term_choice, :]
+
+    # Plot the terms.
+    plt.figure()
+    plt.title(f"Embedding after {res['global_step']} steps")
+    x_lims = np.array([random_weights.T[0].min(),
+                       random_weights.T[0].max()])
+    y_lims = np.array([random_weights.T[1].min(),
+                       random_weights.T[1].max()])
+    plt.xlim(1.5*x_lims)
+    plt.ylim(1.5*y_lims)
+    for x, y, term in zip(*random_weights.T, informative_terms):
+        plt.text(x, y, term, fontsize=8)
 
 
 will_test = False
