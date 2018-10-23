@@ -252,6 +252,16 @@ def evaluate(model, features, labels, steps=1000):
     return results
 
 
+def get_predictions(model, features, labels):
+    '''Retrieve predictions from model.'''
+    ds = make_dataset(features, labels)
+    preds = model.predict(train_fn(ds, shuffle=False))
+    preds = list(preds)
+    probabilities = np.vstack(pred["probabilities"] for pred in preds)
+    class_ids = np.hstack(pred["class_ids"] for pred in preds)
+    return probabilities, class_ids
+
+
 # Train a linear classifier.
 tfs = ['marital_status', 'age', 'hours_per_week', 'education',
        'occupation', 'gender', 'capital_gain', 'capital_loss', 'race',
@@ -291,12 +301,18 @@ list(map(os.remove,
          glob.glob(os.path.join(
              trained_nn.model_dir, "events.out.tfevents*"))))
 
-for category in ('race', 'gender'):
-    for group in train_features[category]:
-
-        # Validate.
+# Validate.
 print("Evaluated on validation set:")
 res = evaluate(trained_nn, validate_features, validate_labels, steps=1000)
+
+# Get predictions for training data
+probabilities, class_ids = get_predictions(
+    trained_nn, train_features, train_labels)
+
+
+for category in ('race', 'gender'):
+    for group in train_features[category]:
+        confusion_matrix
 
 
 will_test = False
