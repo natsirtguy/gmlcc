@@ -42,12 +42,12 @@ def examine(examples: pd.DataFrame):
 
 def num_cat(df: pd.DataFrame):
     '''Return the numerical and categorical columns.'''
-    num_cols = df.columns[np.logical_or.reduce((df.dtypes == "int64",
-                                                df.dtypes == "float64",
-                                                df.dtypes == "bool"))]
+    numeric_cols = list(
+        df.columns[np.logical_or.reduce((df.dtypes == "int64",
+                                         df.dtypes == "float64"))])
 
-    cat_cols = list(set(df.columns) - set(num_cols))
-    return num_cols, cat_cols
+    categorical_cols = list(set(df.columns) - set(numeric_cols))
+    return numeric_cols, categorical_cols
 
 
 def plot_hists(examples: pd.DataFrame):
@@ -74,10 +74,11 @@ def preprocess(examples: pd.DataFrame):
     features = examples.copy()[list(
         set(columns) - {"income_bracket", "education_num"})]
 
-    num_cols, cat_cols = num_cat(features)
+    numeric_cols, categorical_cols = num_cat(features)
 
     # Scale numerical columns, use z-score.
-    for feature in num_cols:
+    numeric_cols = set(numeric_cols) - {'age'}
+    for feature in numeric_cols:
         s = features[feature]
         features[feature] = (s - s.mean())/(s.std())
 
@@ -130,16 +131,19 @@ def make_dataset(features: pd.DataFrame,
 def train_fn(ds: tf.data.Dataset, batch_size=1, shuffle=10000,
              repeat: int=None):
     '''Create input function for training, prediction, evaluation.'''
+
     if shuffle:
-        return lambda: (ds.shuffle(shuffle).batch(batch_size).repeat(repeat)
-                        .make_one_shot_iterator().get_next())
-    return lambda: (ds.batch(batch_size).repeat(repeat)
-                    .make_one_shot_iterator().get_next())
+        ds = ds.shuffle(shuffle)
+    ds = ds.batch(batch_size)
+    if repeat != 1:
+        ds = ds.repeat(repeat)
+
+    return lambda: ds.make_one_shot_iterator().get_next()
 
 
 def train_model(examples: pd.DataFrame, labels: pd.DataFrame,
                 steps=1000, batch_size=1,
-                learning_rate=0.1, hidden_units=[10], show_loss=False,
+                learning_rate=0.1, hidden_units=None, show_loss=False,
                 model=None, eval_steps=100, dropout=None,
                 buckets=None, embeddings=None,
                 l1_regularization_strength=None,
@@ -224,6 +228,7 @@ def train_model(examples: pd.DataFrame, labels: pd.DataFrame,
             try:
                 model.train(train_fn(ds, batch_size=batch_size,
                                      shuffle=10000), steps=steps//10)
+                # probs, cids = get_predictions(model, ds)
                 res = model.evaluate(train_fn(ds, batch_size=1,
                                               shuffle=False), steps=100)
                 print(f"Steps: {res['global_step']}, "
@@ -232,9 +237,9 @@ def train_model(examples: pd.DataFrame, labels: pd.DataFrame,
                 print("\nTraining halted by user.")
                 break
     else:
-        model.train(train_fn(ds,
-                             batch_size=batch_size, shuffle=10000),
-                    steps=steps)
+        model.train(
+            train_fn(ds, batch_size=batch_size, shuffle=10000),
+            steps=steps)
         evals = model.evaluate(
             train_fn(ds, shuffle=False), steps=eval_steps)
         print(f"Steps: {evals['global_step']:4}, Loss: {evals['loss']}")
@@ -260,9 +265,8 @@ def evaluate(model: tf.estimator.Estimator,
 
 
 def get_predictions(model: tf.estimator.Estimator,
-                    features: pd.DataFrame):
+                    ds: tf.data.Dataset):
     '''Retrieve predictions from model.'''
-    ds = make_dataset(features)
     preds = model.predict(train_fn(ds, shuffle=False, repeat=1))
     preds = list(preds)
     probabilities = np.vstack(pred["probabilities"] for pred in preds)
@@ -303,17 +307,18 @@ def group_confusions(labels: pd.DataFrame,
 
 # Train a neural net classifier.
 tfs = ['marital_status', 'age', 'hours_per_week', 'education',
-       'occupation', 'gender', 'capital_gain', 'capital_loss', 'race',
+       'occupation', 'gender', 'race',
        'workclass', 'relationship']
+buckets = {'age': 16}
 trained_nn = train_model(train_features[tfs], train_labels,
                          optimizer=tf.train.AdamOptimizer,
-                         hidden_units=[1024, 512],
-                         dropout=.3,
-                         # buckets=buckets,
-                         # l1_strength=0.5,
+                         hidden_units=[128, 64],
+                         dropout=.2,
+                         buckets=buckets,
+                         # l1_regularization_strength=0.0001,
                          show_loss=True,
                          # embedding=2,
-                         learning_rate=3e-3, steps=1000, batch_size=50)
+                         learning_rate=1e-4, steps=1000, batch_size=4)
 # Remove tf events.
 list(map(os.remove,
          glob.glob(os.path.join(
@@ -324,7 +329,8 @@ print("Evaluated on validation set:")
 res = evaluate(trained_nn, validate_features[tfs], validate_labels)
 
 # Get probabilities on training data.
-probabilities, class_ids = get_predictions(trained_nn, train_features)
+probabilities, class_ids = get_predictions(
+    trained_nn, make_dataset(train_features))
 
 # Show confusion matrices for various subgroups.
 group_confusions(train_labels, train_features, class_ids)
@@ -343,6 +349,6 @@ if will_test:
     print("Evaluated on test set:")
     test_res = evaluate(trained_nn, test_features, test_labels)
     test_probs, test_class = get_predictions(
-        trained_nn, test_features, test_labels)
+        trained_nn, make_dataset(test_features))
 
     group_confusions(test_labels, test_features, )

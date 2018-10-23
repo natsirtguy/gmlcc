@@ -82,7 +82,7 @@
 * Produce predictions using tensorflow:
   Call model.predict(input_fn=predict_fn), predict_fn does no shuffling, batch with single item, only repeat one epoch, only returns data
 * Repeat=None in tf.data.Dataset means:
-  That the data will repeat indefinitely, must set repeat=1 for predicitions
+  That the data will repeat indefinitely, must set repeat=1 for predictions
 * Feature engineering:
   Transforming raw data into a feature vector
 * One-hot encoding:
@@ -225,7 +225,7 @@
   Nonlinear means nonconvex optimization
 * Another name for nonlinear transformation layer:
   Activation function, from neurons
-* Tool to do gradient descent on nonlinear models:
+* Tool to do gradient descent:
   Backpropagation
 * Advantage of neural networks over feature crosses:
   More flexible, work in more cases, don't need to see the structure and create features
