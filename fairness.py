@@ -34,13 +34,13 @@ train_examples = pd.read_csv(
 train_examples = train_examples.dropna(how='any', axis=0)
 
 
-def examine(examples):
+def examine(examples: pd.DataFrame):
     '''Examine data in dataframe.'''
     for i in range(0, len(examples.columns)):
         print(examples.iloc[:, i:i+1].describe())
 
 
-def num_cat(df):
+def num_cat(df: pd.DataFrame):
     '''Return the numerical and categorical columns.'''
     num_cols = df.columns[np.logical_or.reduce((df.dtypes == "int64",
                                                 df.dtypes == "float64",
@@ -50,7 +50,7 @@ def num_cat(df):
     return num_cols, cat_cols
 
 
-def plot_hists(examples):
+def plot_hists(examples: pd.DataFrame):
     '''Plot histograms for categorical and numerical data.'''
     num_cols, cat_cols = num_cat(examples)
     for col in cat_cols:
@@ -69,7 +69,7 @@ def plot_hists(examples):
 # education_num are redundant, possible hard cap on captial_gain at 99999,
 # units of capital_gain and loss unclear (thousand? dollars?)
 
-def preprocess(examples):
+def preprocess(examples: pd.DataFrame):
     '''Prepocess the dataframe and return features and labels.'''
     features = examples.copy()[list(
         set(columns) - {"income_bracket", "education_num"})]
@@ -97,7 +97,8 @@ validate_features = all_features.loc[perm[:22000]]
 validate_labels = all_labels.loc[perm[:22000]]
 
 
-def bucketize(feature, fc, n_bins):
+def bucketize(feature: pd.DataFrame, fc:
+              tf.feature_column.numeric_column, n_bins: int):
     '''Bin pandas series in dataframe examples.
 
     Args:
@@ -113,7 +114,7 @@ def bucketize(feature, fc, n_bins):
     return tf.feature_column.bucketized_column(fc, qs)
 
 
-def make_dataset(features, labels):
+def make_dataset(features: pd.DataFrame, labels: pd.DataFrame):
     '''Create the tf dataset.'''
     fdict = {feature: features[feature] for feature in features}
 
@@ -125,7 +126,8 @@ def make_dataset(features, labels):
     return ds
 
 
-def train_fn(ds, batch_size=1, shuffle=10000, repeat=None):
+def train_fn(ds: tf.data.Dataset, batch_size=1, shuffle=10000,
+             repeat: int=None):
     '''Create input function for training, prediction, evaluation.'''
     if shuffle:
         return lambda: (ds.shuffle(shuffle).batch(batch_size).repeat(repeat)
@@ -134,7 +136,8 @@ def train_fn(ds, batch_size=1, shuffle=10000, repeat=None):
                     .make_one_shot_iterator().get_next())
 
 
-def train_model(examples, labels, steps=1000, batch_size=1,
+def train_model(examples: pd.DataFrame, labels: pd.DataFrame,
+                steps=1000, batch_size=1,
                 learning_rate=0.1, hidden_units=[10], show_loss=False,
                 model=None, eval_steps=100, dropout=None,
                 buckets=None, embeddings=None,
@@ -238,12 +241,15 @@ def train_model(examples, labels, steps=1000, batch_size=1,
     return model
 
 
-def evaluate(model, features, labels, steps=1000):
+def evaluate(model: tf.estimator.Estimator,
+             features: pd.DataFrame,
+             labels: pd.DataFrame,
+             steps: int=None):
     '''Check the mse on the validation set.'''
 
     ds = make_dataset(features, labels)
 
-    results = model.evaluate(train_fn(ds, shuffle=False),
+    results = model.evaluate(train_fn(ds, shuffle=False, repeat=1),
                              steps=steps)
 
     for stat_name, stat_value in results.items():
@@ -252,7 +258,9 @@ def evaluate(model, features, labels, steps=1000):
     return results
 
 
-def get_predictions(model, features, labels):
+def get_predictions(model: tf.estimator.Estimator,
+                    features: pd.DataFrame,
+                    labels: pd.DataFrame):
     '''Retrieve predictions from model.'''
     ds = make_dataset(features, labels)
     preds = model.predict(train_fn(ds, shuffle=False, repeat=1))
@@ -282,21 +290,45 @@ list(map(os.remove,
 
 # Validate.
 print("Evaluated on validation set:")
-res = evaluate(trained_nn, validate_features[tfs], validate_labels, steps=1000)
+res = evaluate(trained_nn, validate_features[tfs], validate_labels)
 
+# Get probabilities on training data.
 probabilities, class_ids = get_predictions(
     trained_nn, train_features, train_labels)
 
 
-# for category in ('race', 'gender'):
-#     for group in train_features[category]:
-#         mask = (train_features[category] == group)
-#         masked_labels = train_labels[mask]
-#         masked_probabilities = probabilities[mask]
-#         cm = confusion_matrix(masked_labels, masked_probabilities)
-#         plt.matshow(cm)
-#         plt.title('Confusion matrix for {category}: {group}')
+def plot_confusion(cm: np.array):
+    '''Plot a confusion matrix.'''
+    plt.matshow(cm.T)
+    plt.xlabel('Actual')
+    plt.ylabel('Predicted')
+    xs = np.array([0, 1, 0, 1]) - .15
+    ys = np.array([0, 0, 1, 1]) + .03
+    ts = [f"TN: {cm[0, 0]:>5}",
+          f"FN: {cm[1, 0]:>5}",
+          f"FP: {cm[0, 1]:>5}",
+          f"TP: {cm[1, 1]:>5}"]
+    for x, y, t in zip(xs, ys, ts):
+        plt.text(x, y, t, color="r")
 
+
+def group_confusions(labels: pd.DataFrame,
+                     features: pd.DataFrame,
+                     class_ids: np.array):
+    cm = confusion_matrix(labels, class_ids)
+    plot_confusion(cm)
+    plt.title('Confusion matrix for all examples')
+    for category in ('race', 'gender'):
+        for group in features[category].unique():
+            mask = (features[category] == group)
+            masked_labels = labels[mask]
+            masked_class_ids = class_ids[mask]
+            cm = confusion_matrix(masked_labels, masked_class_ids)
+            plot_confusion(cm)
+            plt.title(f'Confusion matrix for {category}: {group}')
+
+
+group_confusions(train_labels, train_features, class_ids)
 
 will_test = False
 if will_test:
