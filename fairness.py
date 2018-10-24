@@ -3,14 +3,14 @@
 import glob
 import os
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 from sklearn.metrics import confusion_matrix
 
 import config                   # noqa: F401
+import matplotlib.pyplot as plt
 import seaborn as sbn
-import tensorflow as tf
 
 
 # Prepare to get data.
