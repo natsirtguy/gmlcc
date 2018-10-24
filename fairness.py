@@ -1,24 +1,17 @@
 '''Learn about fairness in machine learning.'''
 
-import os
 import glob
+import os
+
 import numpy as np
 import pandas as pd
-import matplotlib
+import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
+
+import config                   # noqa: F401
+import seaborn as sbn
 import tensorflow as tf
-matplotlib.use('TkAgg')
-import seaborn as sbn           # noqa: E402
-import matplotlib.pyplot as plt  # noqa: E402
 
-
-plt.ion()
-
-# Set up pandas, tensorflow.
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-tf.logging.set_verbosity(tf.logging.ERROR)
-pd.options.display.max_rows = 11
-pd.options.display.float_format = '{:.2f}'.format
 
 # Prepare to get data.
 columns = ["age", "workclass", "fnlwgt", "education", "education_num",
@@ -348,7 +341,7 @@ if will_test:
 
     print("Evaluated on test set:")
     test_res = evaluate(trained_nn, test_features, test_labels)
-    test_probs, test_class = get_predictions(
+    test_probs, test_class_ids = get_predictions(
         trained_nn, make_dataset(test_features))
 
-    group_confusions(test_labels, test_features, )
+    group_confusions(test_labels, test_features, test_class_ids)
