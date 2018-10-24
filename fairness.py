@@ -60,7 +60,7 @@ def plot_hists(examples: pd.DataFrame):
         examples[[col]].hist()
 
 
-# plot_hists(train_examples)
+plot_hists(train_examples)
 
 
 # Notes: possible hard cap on age at 90, more men than women by a lot,
