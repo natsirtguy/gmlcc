@@ -2,21 +2,12 @@
 
 import os
 import glob
+
 import numpy as np
-import pandas as pd
-import matplotlib
 import tensorflow as tf
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt  # noqa: E402
 
-
-plt.ion()
-
-# Set up pandas, tensorflow.
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-tf.logging.set_verbosity(tf.logging.ERROR)
-pd.options.display.max_rows = 11
-pd.options.display.float_format = '{:.2f}'.format
+import config                   # noqa: F401
+import matplotlib.pyplot as plt
 
 # Get data.
 train_url = ('https://download.mlcc.google.com/'
@@ -24,13 +15,12 @@ train_url = ('https://download.mlcc.google.com/'
 train_path = tf.keras.utils.get_file('train.tfrecord', train_url)
 
 
-def _parse_fn(record):
+def _parse_fn(record,
+              features={
+                  "terms": tf.VarLenFeature(dtype=tf.string),
+                  "labels": tf.FixedLenFeature(shape=[1], dtype=tf.float32)
+              }):
     '''Parse a single item from a TFRecordDataset.'''
-    features = {
-        "terms": tf.VarLenFeature(dtype=tf.string),
-        "labels": tf.FixedLenFeature(shape=[1], dtype=tf.float32)
-    }
-
     parsed = tf.parse_single_example(record, features)
     terms = parsed['terms'].values
 
