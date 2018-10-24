@@ -111,7 +111,7 @@ for e, l in [(training_examples, training_labels),
                 c=l["median_house_value"])
 
 
-def train_fn(ds, shuffle=True, batch_size=1, repeat=None):
+def train_fn(ds, shuffle=10000, batch_size=1, repeat=None):
     '''Feed data for train.'''
     return lambda: (ds.shuffle(shuffle).batch(batch_size).repeat(repeat)
                     .make_one_shot_iterator().get_next())

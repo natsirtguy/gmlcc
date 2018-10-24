@@ -3,9 +3,9 @@
 import glob
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 
 import config                   # noqa: F401
@@ -215,13 +215,12 @@ def train_model(examples: pd.DataFrame, labels: pd.DataFrame,
 
         model = model_type(**mkwargs)
 
-    # Use exponentially increasing period lengths.
+    # Track loss.
     if show_loss:
         for period in range(10):
             try:
                 model.train(train_fn(ds, batch_size=batch_size,
                                      shuffle=10000), steps=steps//10)
-                # probs, cids = get_predictions(model, ds)
                 res = model.evaluate(train_fn(ds, batch_size=1,
                                               shuffle=False), steps=100)
                 print(f"Steps: {res['global_step']}, "
